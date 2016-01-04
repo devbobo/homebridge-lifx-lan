@@ -33,7 +33,6 @@ function LifxLanPlatform(log, config) {
             device.log("%s - Offline [%s]", device.name, device.deviceId);
             device.online = false;
             device.bulb = bulb;
-            console.log(device.getService(Service.BridgingState));
             device.services.BridgingState.getCharacteristic(Characteristic.Reachable).setValue(device.online);
         }
     });
