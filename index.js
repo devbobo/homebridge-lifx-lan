@@ -33,7 +33,6 @@ function LifxLanPlatform(log, config) {
             device.log("%s - Offline [%s]", device.name, device.deviceId);
             device.online = false;
             device.bulb = bulb;
-            device.services.BridgingState.getCharacteristic(Characteristic.Reachable).setValue(device.online);
         }
     });
 
@@ -44,7 +43,6 @@ function LifxLanPlatform(log, config) {
             device.log("%s - Online [%s]", device.name, device.deviceId);
             device.online = true;
             device.bulb = bulb;
-            device.services.BridgingState.getCharacteristic(Characteristic.Reachable).setValue(device.online);
         }
     });
 
@@ -152,15 +150,12 @@ LifxBulbAccessory.prototype = {
 
         this.services = {
             AccessoryInformation: new Service.AccessoryInformation(),
-            BridgingState: new Service.BridgingState(),
             Lightbulb: new Service.Lightbulb(this.name)
         };
 
         this.services.AccessoryInformation
             .setCharacteristic(Characteristic.Manufacturer, this.vendor)
             .setCharacteristic(Characteristic.Model, this.model);
-
-        this.services.BridgingState.getCharacteristic(Characteristic.Reachable).setValue(this.online);
 
         this.services.Lightbulb.getCharacteristic(Characteristic.On)
             .setValue(this.power > 0)
@@ -197,7 +192,6 @@ LifxBulbAccessory.prototype = {
 
         services.push(this.services.Lightbulb);
         services.push(this.services.AccessoryInformation);
-        services.push(this.services.BridgingState);
 
         return services;
     },
@@ -237,7 +231,7 @@ LifxBulbAccessory.prototype = {
         var color;
 
         if (this.online === false) {
-            callback(new Error("Device not found"), false);
+            callback(null);
             return;
         }
 
@@ -255,7 +249,7 @@ LifxBulbAccessory.prototype = {
     },
     setPower: function(state, callback){
         if (this.online === false) {
-            callback(new Error("Device not found"), false);
+            callback(null);
             return;
         }
 
@@ -287,7 +281,7 @@ module.exports = function(homebridge) {
 
         this.setProps({
             format: Characteristic.Formats.UINT16,
-            unit: 'kelvin',
+            unit: 'K',
             maxValue: 9000,
             minValue: 2500,
             minStep: 250,
