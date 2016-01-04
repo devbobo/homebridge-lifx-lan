@@ -138,7 +138,7 @@ function LifxBulbAccessory(log, bulb, data, online) {
 
     this.name = data.label || "LiFx " + bulb.id;
     this.power = data.power || 0;
-    this.color = data.color || {hue: 0, saturation: 0, brightness: 0, kelvin: 2500};
+    this.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
 
     this.online = online || true;
     this.model = data.model || null;
@@ -170,6 +170,7 @@ LifxBulbAccessory.prototype = {
             
         this.services.Lightbulb.addCharacteristic(Characteristic.Brightness)
             .setValue(this.color.brightness)
+            .setProps({minValue: 1})
             .on('get', function(callback) {self.getState("brightness", callback)})
             .on('set', function(value, callback) {self.setColor("brightness", value, callback)}
         );
