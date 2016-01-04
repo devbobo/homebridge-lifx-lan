@@ -29,7 +29,7 @@ function LifxLanPlatform(log, config) {
     client.on('light-offline', function(bulb) {
         var device = self.devices[bulb.id];
 
-        if (device && device.services) {
+        if (device) {
             device.log("%s - Offline [%s]", device.name, device.deviceId);
             device.online = false;
             device.bulb = bulb;
@@ -39,7 +39,7 @@ function LifxLanPlatform(log, config) {
     client.on('light-online', function(bulb) {
         var device = self.devices[bulb.id];
 
-        if (device && device.services) {
+        if (device) {
             device.log("%s - Online [%s]", device.name, device.deviceId);
             device.online = true;
             device.bulb = bulb;
