@@ -1,7 +1,7 @@
 {
     "name": "homebridge-lifx-lan",
-    "version": "0.0.1",
-    "description": "LiFx LAN platform plugin for Homebridge: https://github.com/nfarina/homebridge",
+    "version": "0.0.2",
+    "description": "LiFx LAN platform plugin for Homebridge",
     "homepage": "https://github.com/devbobo/homebridge-lifx-lan#readme",
     "repository": {
         "type": "git",
