@@ -156,7 +156,7 @@ LifxBulbAccessory.prototype = {
                 state = self.color[type];
                 break;
             case "power":
-                self.log("%s - Get power: %d", this.name, this.power);
+                this.log("%s - Get power: %d", this.name, this.power);
                 state = this.power > 0;
                 break;
         }
