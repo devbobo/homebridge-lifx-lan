@@ -144,6 +144,25 @@ function LifxBulbAccessory(log, bulb, data, online) {
 }
 
 LifxBulbAccessory.prototype = {
+    get: function (type) {
+        var state;
+
+        switch(type) {
+            case "brightness":
+            case "hue":
+            case "kelvin":
+            case "saturation":
+                this.log("%s - Get %s: %d", this.name, type, this.color[type]);
+                state = self.color[type];
+                break;
+            case "power":
+                self.log("%s - Get power: %d", this.name, this.power);
+                state = this.power > 0;
+                break;
+        }
+
+        return state;
+    },
     getServices: function() {
         var self = this;
         var services = [];
@@ -199,32 +218,17 @@ LifxBulbAccessory.prototype = {
         var self = this;
         
         if (this.online === false) {
-            callback(new Error("Device not found"), false);
+            callback(null, self.get(type));
             return;
         }
 
         this.bulb.getState(function(err, data) {
-            if (err !== null) {
-                callback(new Error("Device not found"), false);
-                return;
+            if (data) {
+                self.power = data.power;
+                self.color = data.color;
             }
 
-            self.power = data.power;
-            self.color = data.color;
-
-            switch(type) {
-                case "brightness":
-                case "hue":
-                case "kelvin":
-                case "saturation":
-                    self.log("%s - Get %s: %d", self.name, type, self.color[type]);
-                    callback(null, self.color[type]);
-                    break;
-                case "power":
-                    self.log("%s - Get power: %d", self.name, self.power);
-                    callback(null, self.power > 0);
-                    break;
-            }
+            callback(null, self.get(type));
         });
     },
     setColor: function(type, value, callback){
@@ -239,11 +243,6 @@ LifxBulbAccessory.prototype = {
         this.color[type] = value;
 
         this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, 0, function (err) {
-            if (err) {
-                callback(new Error("Device not found"), false);
-                return;
-            }
-
             callback(null);
         });
     },
@@ -255,12 +254,7 @@ LifxBulbAccessory.prototype = {
 
         this.log("%s - Set power: %d", this.name, state);
 
-        this.bulb[state ? "on" : "off"](0, function(err){
-            if (err) {
-                callback(new Error("Device not found"), false);
-                return;
-            }
-
+        this.bulb[state ? "on" : "off"](0, function(err) {
             callback(null);
         });
     }
