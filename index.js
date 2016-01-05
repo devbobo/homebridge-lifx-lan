@@ -17,7 +17,32 @@ var storage = require('node-persist');
 var LifxClient = require('node-lifx').Client;
 var LifxLight = require('node-lifx').Light;
 
-var client = new LifxClient();
+var Client = new LifxClient();
+var Characteristic, Kelvin, Service, uuid;
+
+module.exports = function(homebridge) {
+    Characteristic = homebridge.hap.Characteristic;
+    Service = homebridge.hap.Service;
+    uuid = homebridge.hap.uuid;
+
+    Kelvin = function() {
+        Characteristic.call(this, 'Kelvin', 'C4E24248-04AC-44AF-ACFF-40164e829DBA')
+
+        this.setProps({
+            format: Characteristic.Formats.UINT16,
+            unit: 'K',
+            maxValue: 9000,
+            minValue: 2500,
+            minStep: 250,
+            perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+        });
+
+        this.value = this.getDefaultValue();
+    };
+    require('util').inherits(Kelvin, Characteristic);
+
+    homebridge.registerPlatform("homebridge-lifx-lan", "LifxLan", LifxLanPlatform);
+};
 
 function LifxLanPlatform(log, config) {
     var self = this;
@@ -26,7 +51,7 @@ function LifxLanPlatform(log, config) {
     this.discoveryTimeout = config.timeout || 30;
     this.log = log;
 
-    client.on('light-offline', function(bulb) {
+    Client.on('light-offline', function(bulb) {
         var device = self.devices[bulb.id];
 
         if (device) {
@@ -36,7 +61,7 @@ function LifxLanPlatform(log, config) {
         }
     });
 
-    client.on('light-online', function(bulb) {
+    Client.on('light-online', function(bulb) {
         var device = self.devices[bulb.id];
 
         if (device) {
@@ -46,7 +71,7 @@ function LifxLanPlatform(log, config) {
         }
     });
 
-    client.init();
+    Client.init();
 }
 
 LifxLanPlatform.prototype = {
@@ -60,7 +85,7 @@ LifxLanPlatform.prototype = {
 
         storage.initSync({dir: this.persistPath()});
 
-        client.on('light-new', function(bulb) {
+        Client.on('light-new', function(bulb) {
             bulb.getState(function(err, state) {
                 if (err) {
                     state = {
@@ -93,19 +118,19 @@ LifxLanPlatform.prototype = {
             function () {
                 self.log("Stopping device discovery...");
                 discovery = false;
-                client.stopDiscovery();
+                Client.stopDiscovery();
 
                 storage.forEach(function(key, value) {
                     if (self.devices[key] == undefined) {
                         var bulb = new LifxLight({
-                            client: client,
+                            client: Client,
                             id: value.id,
                             address: value.address,
                             port: value.port,
                             seenOnDiscovery: 0
                         });
 
-                        client.devices[value.address] = bulb;
+                        Client.devices[value.address] = bulb;
 
                         var accessory = new LifxBulbAccessory(self.log, bulb, {label: value.label, vendor: value.vendor, model: value.model}, false);
                         self.devices[accessory.deviceId] = accessory
@@ -118,7 +143,7 @@ LifxLanPlatform.prototype = {
             this.discoveryTimeout * 1000
         );
 
-        client.startDiscovery();
+        Client.startDiscovery();
     }
 }
 
@@ -259,32 +284,3 @@ LifxBulbAccessory.prototype = {
         });
     }
 }
-
-module.exports.accessory = LifxBulbAccessory;
-module.exports.platform = LifxLanPlatform;
-
-var Characteristic, Kelvin, Service, uuid;
-
-module.exports = function(homebridge) {
-    Characteristic = homebridge.hap.Characteristic;
-    Service = homebridge.hap.Service;
-    uuid = homebridge.hap.uuid;
-
-    Kelvin = function() {
-        Characteristic.call(this, 'Kelvin', 'C4E24248-04AC-44AF-ACFF-40164e829DBA')
-
-        this.setProps({
-            format: Characteristic.Formats.UINT16,
-            unit: 'K',
-            maxValue: 9000,
-            minValue: 2500,
-            minStep: 250,
-            perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
-        });
-    
-        this.value = this.getDefaultValue();
-    };
-    require('util').inherits(Kelvin, Characteristic);
-
-    homebridge.registerPlatform("homebridge-lifx-lan", "LifxLan", LifxLanPlatform);
-};
