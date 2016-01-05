@@ -153,7 +153,7 @@ LifxBulbAccessory.prototype = {
             case "kelvin":
             case "saturation":
                 this.log("%s - Get %s: %d", this.name, type, this.color[type]);
-                state = self.color[type];
+                state = this.color[type];
                 break;
             case "power":
                 this.log("%s - Get power: %d", this.name, this.power);
