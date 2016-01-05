@@ -107,7 +107,7 @@ LifxLanPlatform.prototype = {
 
                         client.devices[value.address] = bulb;
 
-                        var accessory = new LifxBulbAccessory(self.log, bulb, {label: value.label}, false);
+                        var accessory = new LifxBulbAccessory(self.log, bulb, {label: value.label, vendor: value.vendor, model: value.model}, false);
                         self.devices[accessory.deviceId] = accessory
                         foundAccessories.push(accessory);
                     }
