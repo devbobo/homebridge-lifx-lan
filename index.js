@@ -12,10 +12,9 @@
 // ],
 //
 
-var storage = require('node-persist');
-
 var LifxClient = require('node-lifx').Client;
 var LifxLight = require('node-lifx').Light;
+var Storage = require('node-persist');
 
 var Client = new LifxClient();
 var Characteristic, Kelvin, Service, uuid;
@@ -55,7 +54,7 @@ function LifxLanPlatform(log, config) {
         var device = self.devices[bulb.id];
 
         if (device) {
-            device.log("%s - Offline [%s]", device.name, device.deviceId);
+            device.log("Offline: %s [%s]", device.name, device.deviceId);
             device.online = false;
             device.bulb = bulb;
         }
@@ -65,7 +64,7 @@ function LifxLanPlatform(log, config) {
         var device = self.devices[bulb.id];
 
         if (device) {
-            device.log("%s - Online [%s]", device.name, device.deviceId);
+            device.log("Online: %s [%s]", device.name, device.deviceId);
             device.online = true;
             device.bulb = bulb;
         }
@@ -83,7 +82,7 @@ LifxLanPlatform.prototype = {
         var foundCount = 0;
         var foundAccessories = [];
 
-        storage.initSync({dir: this.persistPath()});
+        Storage.initSync({dir: this.persistPath()});
 
         Client.on('light-new', function(bulb) {
             bulb.getState(function(err, state) {
@@ -99,7 +98,7 @@ LifxLanPlatform.prototype = {
                     }
 
                     var persist = {id: bulb.id, address: bulb.address, port: bulb.port, label: state.label, vendor: data.vendorName, model: data.productName};
-                    storage.setItemSync(bulb.id, persist);
+                    Storage.setItemSync(bulb.id, persist);
 
                     self.log("Found: %s [%s]", state.label, data.productName);
 
@@ -120,7 +119,7 @@ LifxLanPlatform.prototype = {
                 discovery = false;
                 Client.stopDiscovery();
 
-                storage.forEach(function(key, value) {
+                Storage.forEach(function(key, value) {
                     if (self.devices[key] == undefined) {
                         var bulb = new LifxLight({
                             client: Client,
