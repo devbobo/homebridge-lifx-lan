@@ -5,9 +5,16 @@
 // Remember to add platform to config.json. Example:
 // "platforms": [
 //     {
-//         "platform": "LifxLan",   // required
-//         "name": "LiFx LAN",      // required
-//         "timeout": 30            // optional: timeout for Discovery (30 sec default)
+//         "platform": "LifxLan",           // required
+//         "name": "LiFx LAN",              // required
+//         "timeout": 30,                   // optional: timeout for Discovery (30 sec default)
+
+//         ** optional node-lifx parameters **
+//         "lightOfflineTolerance": 3,       // optional: A light is offline if not seen for the given amount of discoveries
+//         "messageHandlerTimeout": 45000,   // optional: in ms, if not answer in time an error is provided to get methods
+//         "resendPacketDelay": 150,         // optional: delay between packages if light did not receive a packet (for setting methods with callback)
+//         "resendMaxTimes": 3,              // optional: resend packages x times if light did not receive a packet (for setting methods with callback)
+//         "debug": false                    // optional: logs all messages in console if turned on
 //     }
 // ],
 //
@@ -70,7 +77,13 @@ function LifxLanPlatform(log, config) {
         }
     });
 
-    Client.init();
+    Client.init({
+        debug:                  config.debug || false,
+        lightOfflineTolerance:  config.lightOfflineTolerance || 3,
+        messageHandlerTimeout:  config.messageHandlerTimeout || 45000,
+        resendMaxTimes:         config.resendMaxTimes || 3,
+        resendPacketDelay:      config.resendPacketDelay || 150
+    });
 }
 
 LifxLanPlatform.prototype = {
