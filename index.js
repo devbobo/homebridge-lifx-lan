@@ -113,7 +113,7 @@ LifxLanPlatform.prototype = {
                     var persist = {id: bulb.id, address: bulb.address, port: bulb.port, label: state.label, vendor: data.vendorName, model: data.productName};
                     Storage.setItemSync(bulb.id, persist);
 
-                    self.log("Found: %s [%s]", state.label, data.productName);
+                    self.log("Found: %s [%s] - %s", state.label, bulb.id, data.productName);
 
                     if (discovery == true) {
                         var accessory = new LifxBulbAccessory(self.log, bulb, {color: state.color, label: state.label, power: state.power, vendor: data.vendorName, model: data.productName});
@@ -182,7 +182,7 @@ function LifxBulbAccessory(log, bulb, data, online) {
 
 LifxBulbAccessory.prototype = {
     identify: function(callback) {
-        this.log("identify");
+        this.log("Identify: %s [%s]", this.name, this.deviceId);
         callback();
     },
     get: function (type) {
