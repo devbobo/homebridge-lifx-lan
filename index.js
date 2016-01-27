@@ -181,6 +181,10 @@ function LifxBulbAccessory(log, bulb, data, online) {
 }
 
 LifxBulbAccessory.prototype = {
+    identify: function(callback) {
+        this.log("identify");
+        callback();
+    },
     get: function (type) {
         var state;
 
