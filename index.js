@@ -222,7 +222,7 @@ LifxBulbAccessory.prototype = {
             .on('get', function(callback) {self.getState("power", callback)})
             .on('set', function(value, callback) {self.setPower(value, callback)}
         );
-            
+
         this.services.Lightbulb.addCharacteristic(Characteristic.Brightness)
             .setValue(this.color.brightness)
             .setProps({minValue: 1})
