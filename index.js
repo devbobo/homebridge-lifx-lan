@@ -146,6 +146,7 @@ function LifxLanPlatform(log, config, api) {
         else {
             for (var index in self.accessories) {
                 if (self.accessories[index].UUID == uuid) {
+                    self.log("Online: %s [%s]", self.accessories[index].displayName, bulb.id);
                     self._setupAccessory(self.accessories[index], bulb);
                     break;
                 }
@@ -184,7 +185,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
-    this.log("Cached: %s", accessory.displayName);
+    accessory.updateReachability(false);
     this.configured.push(accessory.UUID);
     this.accessories.push(accessory);
 }
@@ -286,11 +287,6 @@ LifxLanPlatform.prototype._get = function (accessory, type) {
 LifxLanPlatform.prototype._getState = function(accessory, type, callback){
     var self = this;
 
-    if (accessory.reachable === false) {
-        callback(null, self._get(accessory, type));
-        return;
-    }
-
     accessory.bulb.getState(function(err, data) {
         if (data) {
             accessory.power = data.power;
@@ -304,11 +300,6 @@ LifxLanPlatform.prototype._getState = function(accessory, type, callback){
 LifxLanPlatform.prototype._setColor = function(accessory, type, value, callback){
         var color;
 
-        if (accessory.reachable === false) {
-            callback(null);
-            return;
-        }
-
         this.log("%s - Set %s: %d", accessory.displayName, type, value);
         accessory.color[type] = value;
 
@@ -318,11 +309,6 @@ LifxLanPlatform.prototype._setColor = function(accessory, type, value, callback)
     }
 
 LifxLanPlatform.prototype._setPower = function(accessory, state, callback){
-    if (accessory.reachable === false) {
-        callback(null);
-        return;
-    }
-
     this.log("%s - Set power: %d", accessory.displayName, state);
 
     accessory.bulb[state ? "on" : "off"](0, function(err) {
