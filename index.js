@@ -34,7 +34,7 @@ module.exports = function(homebridge) {
     UUIDGen = homebridge.hap.uuid;
 
     Kelvin = function() {
-        Characteristic.call(this, 'Kelvin', 'C4E24248-04AC-44AF-ACFF-40164e829DBA')
+        Characteristic.call(this, 'Kelvin', 'C4E24248-04AC-44AF-ACFF-40164E829DBA')
 
         this.setProps({
             format: Characteristic.Formats.UINT16,
@@ -48,6 +48,8 @@ module.exports = function(homebridge) {
         this.value = this.getDefaultValue();
     };
     inherits(Kelvin, Characteristic);
+
+    Kelvin.UUID = 'C4E24248-04AC-44AF-ACFF-40164E829DBA';
 
     homebridge.registerPlatform("homebridge-lifx-lan", "LifxLan", LifxLanPlatform, true);
 };
@@ -83,18 +85,32 @@ function LifxLanPlatform(log, config, api) {
             accessory.bulb = bulb;
 
             var service = accessory.getService(Service.Lightbulb);
-            service.getCharacteristic(Characteristic.On).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.On).removeAllListeners("set");
 
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
+            if (service.testCharacteristic(Characteristic.On)) {
+                service.getCharacteristic(Characteristic.On).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.On).removeAllListeners("set");
+            }
+
+            if (service.testCharacteristic(Characteristic.Brightness)) {
+                service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
+            }
+
+            if (service.testCharacteristic(Kelvin)) {
+                service.getCharacteristic(Kelvin).removeAllListeners("get");
+                service.getCharacteristic(Kelvin).removeAllListeners("set");
+            }
 
             if (/[Color|Original]/.test(self.accessories[key].getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model))) {
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
+                if (service.testCharacteristic(Characteristic.Hue)) {
+                    service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
+                    service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
+                }
 
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
+                if (service.testCharacteristic(Characteristic.Saturation)) {
+                    service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
+                    service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
+                }
             }
 
             self.accessories[key] = accessory;
@@ -162,7 +178,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
             var accessory = new PlatformAccessory(name, UUIDGen.generate(bulb.id));
 
             self.log("Found: %s [%s]", state.label, bulb.id);
-            accessory.addService(Service.Lightbulb);
+            accessory.addService(Service.Lightbulb).addOptionalCharacteristic(Kelvin);
             self._initAccessory(accessory, bulb, state);
     });
 }
@@ -210,13 +226,11 @@ LifxLanPlatform.prototype._initAccessory = function(accessory, bulb, data) {
         .on('get', function(callback) {self._getState(accessory, "brightness", callback)})
         .on('set', function(value, callback) {self._setColor(accessory, "brightness", value, callback)});
 
-    /*
     service
         .getCharacteristic(Kelvin)
         .setValue(accessory.color.kelvin)
         .on('get', function(callback) {self._getState(accessory, "kelvin", callback)})
         .on('set', function(value, callback) {self._setColor(accessory, "kelvin", value, callback)});
-    */
 
     accessory.updateReachability(true);
 
