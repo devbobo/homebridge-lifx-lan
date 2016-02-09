@@ -66,17 +66,38 @@ function LifxLanPlatform(log, config, api) {
         var key;
         var uuid = UUIDGen.generate(bulb.id);
 
-        for (var index in self.accessories) {
-            if (self.accessories[index].UUID == uuid) {
-                key = index;
-                break;
+        if (self.configured.indexOf(uuid) !== -1) {
+            for (var index in self.accessories) {
+                if (self.accessories[index].UUID == uuid) {
+                    key = index;
+                    break;
+                }
             }
         }
 
         if (key) {
-            self.log("Offline: %s [%s]", self.accessories[key].displayName, bulb.id);
-            self.accessories[key].updateReachability(false);
-            self.accessories[key].bulb = bulb;
+            var accessory = self.accessories[key];
+
+            self.log("Offline: %s [%s]", accessory.displayName, bulb.id);
+            accessory.updateReachability(false);
+            accessory.bulb = bulb;
+
+            var service = accessory.getService(Service.Lightbulb);
+            service.getCharacteristic(Characteristic.On).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.On).removeAllListeners("set");
+
+            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
+
+            if (/[Color|Original]/.test(self.accessories[key].getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model))) {
+                service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
+
+                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
+            }
+
+            self.accessories[key] = accessory;
         }
     });
 
@@ -84,47 +105,36 @@ function LifxLanPlatform(log, config, api) {
         var key;
         var uuid = UUIDGen.generate(bulb.id);
 
-        for (var index in self.accessories) {
-            if (self.accessories[index].UUID == uuid) {
-                key = index;
-                break;
+        if (self.configured.indexOf(uuid) !== -1) {
+            for (var index in self.accessories) {
+                if (self.accessories[index].UUID == uuid) {
+                    key = index;
+                    break;
+                }
             }
         }
 
         if (key) {
             self.log("Online: %s [%s]", self.accessories[key].displayName, bulb.id);
-            self.accessories[key].updateReachability(false);
-
-            if (self.accessories[key].bulb == undefined) {
-                self._initAccessory(self.accessories[key], bulb, {});
-            }
-            else {
-                self.accessories[key].bulb = bulb;
-            }
+            self.accessories[key].updateReachability(true);
+            self._setupAccessory(self.accessories[key], bulb);
         }
     });
 
     Client.on('light-new', function(bulb) {
-        bulb.getState(function(err, state) {
-            if (err) {
-                state = {
-                    label: bulb.client.label
-                }
-            }
+        var uuid = UUIDGen.generate(bulb.id);
 
-            if (self.configured.indexOf(UUIDGen.generate(bulb.id)) == -1) {
-                self.log("Found: %s [%s]", state.label, bulb.id);
-                self.addAccessory(bulb, state);
-            }
-            else {
-                for (var index in self.accessories) {
-                    if (self.accessories[index].UUID == UUIDGen.generate(bulb.id)) {
-                        self._initAccessory(self.accessories[index], bulb, state);
-                        break;
-                    }
+        if (self.configured.indexOf(uuid) == -1) {
+            self.addAccessory(bulb);
+        }
+        else {
+            for (var index in self.accessories) {
+                if (self.accessories[index].UUID == uuid) {
+                    self._setupAccessory(self.accessories[index], bulb);
+                    break;
                 }
             }
-        });
+        }
     });
 
     this.api.on('didFinishLaunching', function() {
@@ -139,22 +149,42 @@ function LifxLanPlatform(log, config, api) {
 }
 
 LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
-    this.log("Add Accessory");
     var self = this;
-    var name = data.label || "LiFx " + bulb.id;
-    var accessory = new PlatformAccessory(name, UUIDGen.generate(bulb.id));
 
-    accessory.addService(Service.Lightbulb);
-    this._initAccessory(accessory, bulb, data);
+    bulb.getState(function(err, state) {
+            if (err) {
+                state = {
+                    label: bulb.client.label
+                }
+            }
 
-    this.accessories.push(accessory);
-    this.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
+            var name = state.label || "LiFx " + bulb.id;
+            var accessory = new PlatformAccessory(name, UUIDGen.generate(bulb.id));
+
+            self.log("Found: %s [%s]", state.label, bulb.id);
+            accessory.addService(Service.Lightbulb);
+            self._initAccessory(accessory, bulb, state);
+    });
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
     this.log("Cached: %s", accessory.displayName);
     this.configured.push(accessory.UUID);
     this.accessories.push(accessory);
+}
+
+LifxLanPlatform.prototype._setupAccessory = function(accessory, bulb) {
+    var self = this;
+
+    bulb.getState(function(err, state) {
+        if (err) {
+            state = {
+                label: bulb.client.label
+            }
+        }
+
+        self._initAccessory(accessory, bulb, state);
+    });
 }
 
 LifxLanPlatform.prototype._initAccessory = function(accessory, bulb, data) {
@@ -164,6 +194,7 @@ LifxLanPlatform.prototype._initAccessory = function(accessory, bulb, data) {
     accessory.power = data.power || 0;
     accessory.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
 
+    var characteristic
     var service = accessory.getService(Service.Lightbulb);
 
     service
@@ -172,40 +203,49 @@ LifxLanPlatform.prototype._initAccessory = function(accessory, bulb, data) {
         .on('get', function(callback) {self._getState(accessory, "power", callback)})
         .on('set', function(value, callback) {self._setPower(accessory, value, callback)});
 
-    service.getCharacteristic(Characteristic.Brightness)
+    service
+        .getCharacteristic(Characteristic.Brightness)
         .setValue(accessory.color.brightness)
         .setProps({minValue: 1})
         .on('get', function(callback) {self._getState(accessory, "brightness", callback)})
         .on('set', function(value, callback) {self._setColor(accessory, "brightness", value, callback)});
 
     /*
-    service.getCharacteristic(Kelvin)
+    service
+        .getCharacteristic(Kelvin)
         .setValue(accessory.color.kelvin)
         .on('get', function(callback) {self._getState(accessory, "kelvin", callback)})
         .on('set', function(value, callback) {self._setColor(accessory, "kelvin", value, callback)});
     */
 
-    if (/[Color|Original]/.test(this.model)) {
-        service.getCharacteristic(Characteristic.Hue)
-            .setValue(accessory.color.hue)
-            .on('get', function(callback) {self._getState(accessory, "hue", callback)})
-            .on('set', function(value, callback) {self._setColor(accessory, "hue", value, callback)}
-        );
-
-        service.getCharacteristic(Characteristic.Saturation)
-            .setValue(accessory.color.saturation)
-            .on('get', function(callback) {self._getState(accessory, "saturation", callback)})
-            .on('set', function(value, callback) {self._setColor(accessory, "saturation", value, callback)}
-        );
-    }
-
     accessory.updateReachability(true);
 
     bulb.getHardwareVersion(function(err, data) {
-        accessory.getService(Service.AccessoryInformation)
+        accessory
+            .getService(Service.AccessoryInformation)
             .setCharacteristic(Characteristic.Manufacturer, data.vendorName)
             .setCharacteristic(Characteristic.Model, data.productName)
             .setCharacteristic(Characteristic.SerialNumber, bulb.id);
+
+        if (/[Color|Original]/.test(data.productName)) {
+            service
+                .getCharacteristic(Characteristic.Hue)
+                .setValue(accessory.color.hue)
+                .on('get', function(callback) {self._getState(accessory, "hue", callback)})
+                .on('set', function(value, callback) {self._setColor(accessory, "hue", value, callback)});
+
+            service
+                .getCharacteristic(Characteristic.Saturation)
+                .setValue(accessory.color.saturation)
+                .on('get', function(callback) {self._getState(accessory, "saturation", callback)})
+                .on('set', function(value, callback) {self._setColor(accessory, "saturation", value, callback)});
+        }
+
+        if (self.configured.indexOf(accessory.UUID) === -1) {
+            self.configured.push(accessory.UUID);
+            self.accessories.push(accessory);
+            self.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
+        }
     });
 }
 
