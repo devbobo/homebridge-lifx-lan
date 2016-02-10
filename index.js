@@ -148,6 +148,12 @@ LifxLanPlatform.prototype.configureAccessory = function(accessory) {
     this.accessories[accessory.UUID] = accessory;
 }
 
+LifxLanPlatform.prototype.removeAccessory = function(accessory) {
+    this.log("Delete: %s", accessory.displayName);
+    delete this.accessories[accessory.UUID];
+    this.api.unregisterPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
+}
+
 function LifxAccessory(log, accessory, bulb, data) {
     this.accessory = accessory;
     this.power = data.power || 0;
@@ -236,7 +242,7 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
             .on('get', function(callback) {self.getState("kelvin", callback)})
             .on('set', function(value, callback) {self.setColor("kelvin", value, callback)});
 
-        if (/[Color|Original]/.test(this.accessory.context.make)) {
+        if (/[Color|Original]/.test(this.accessory.context.model)) {
             service
                 .getCharacteristic(Characteristic.Hue)
                 .setValue(this.color.hue)
@@ -272,7 +278,7 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
             service.getCharacteristic(Kelvin).removeAllListeners("set");
         }
 
-        if (/[Color|Original]/.test(this.accessory.context.make)) {
+        if (/[Color|Original]/.test(this.accessory.context.model)) {
             if (service.testCharacteristic(Characteristic.Hue)) {
                 service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
                 service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
