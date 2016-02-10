@@ -149,8 +149,12 @@ LifxLanPlatform.prototype.configureAccessory = function(accessory) {
 }
 
 LifxLanPlatform.prototype.removeAccessory = function(accessory) {
-    this.log("Delete: %s", accessory.displayName);
-    delete this.accessories[accessory.UUID];
+    this.log("Remove: %s", accessory.displayName);
+
+    if (this.accessories[accessory.UUID]) {
+        delete this.accessories[accessory.UUID];
+    }
+
     this.api.unregisterPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
 }
 
