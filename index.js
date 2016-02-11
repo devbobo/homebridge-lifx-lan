@@ -102,6 +102,7 @@ function LifxLanPlatform(log, config, api) {
                     }
                 }
 
+                self.log("Online: %s [%s]", accessory.displayName, bulb.id);
                 self.accessories[uuid] = new LifxAccessory(self.log, accessory, bulb, state);
             });
         }
