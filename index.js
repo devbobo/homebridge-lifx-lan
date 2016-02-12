@@ -181,7 +181,10 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
         }
     }
     else {
-        this.sortedAccessories = Object.keys(this.accessories).map(function(k){return this[k] instanceof LifxAccessory ? this[k].accessory : this[k]}, this.accessories).sort(compare);
+        this.sortedAccessories = Object.keys(this.accessories).map(
+            function(k){return this[k] instanceof LifxAccessory ? this[k].accessory : this[k]},
+            this.accessories
+        ).sort(function(a,b) {if (a.displayName < b.displayName) return -1; if (a.displayName > b.displayName) return 1; return 0});
         var names = Object.keys(this.sortedAccessories).map(function(k) {return this[k].displayName}, this.sortedAccessories);
 
         respDict = {
@@ -254,9 +257,9 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
     var color;
 
     this.log("%s - Set %s: %d", this.accessory.displayName, type, value);
-    self.color[type] = value;
+    this.color[type] = value;
 
-    this.bulb.color(self.color.hue, self.color.saturation, self.color.brightness, self.color.kelvin, 0, function (err) {
+    this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, 0, function (err) {
         callback(null);
     });
 }
@@ -352,16 +355,4 @@ function accessoryUnreachable(accessory) {
             service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
         }
     }
-}
-
-function compare(a,b) {
-    if (a.displayName < b.displayName) {
-        return -1;
-    }
-
-    if (a.displayName > b.displayName) {
-        return 1;
-    }
-
-    return 0;
 }
