@@ -293,7 +293,7 @@ function accessoryUnreachable(accessory) {
         service.getCharacteristic(Kelvin).removeAllListeners("set");
     }
 
-    if (/[Color|Original]/.test(this.accessory.context.model)) {
+    if (/[Color|Original]/.test(accessory.context.model)) {
         if (service.testCharacteristic(Characteristic.Hue)) {
             service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
             service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
