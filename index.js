@@ -146,6 +146,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
+    accessoryUnreachable(accessory);
     this.accessories[accessory.UUID] = accessory;
 }
 
@@ -268,31 +269,39 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
             .setCharacteristic(Characteristic.SerialNumber, bulb.id);
     }
     else {
-        if (service.testCharacteristic(Characteristic.On)) {
-            service.getCharacteristic(Characteristic.On).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.On).removeAllListeners("set");
+        accessoryUnreachable(this.accessory);
+    }
+}
+
+function accessoryUnreachable(accessory) {
+    var service = accessory.getService(Service.Lightbulb);
+
+    accessory.updateReachability(false);
+
+    if (service.testCharacteristic(Characteristic.On)) {
+        service.getCharacteristic(Characteristic.On).removeAllListeners("get");
+        service.getCharacteristic(Characteristic.On).removeAllListeners("set");
+    }
+
+    if (service.testCharacteristic(Characteristic.Brightness)) {
+        service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
+        service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
+    }
+
+    if (service.testCharacteristic(Kelvin)) {
+        service.getCharacteristic(Kelvin).removeAllListeners("get");
+        service.getCharacteristic(Kelvin).removeAllListeners("set");
+    }
+
+    if (/[Color|Original]/.test(this.accessory.context.model)) {
+        if (service.testCharacteristic(Characteristic.Hue)) {
+            service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
         }
 
-        if (service.testCharacteristic(Characteristic.Brightness)) {
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
-        }
-
-        if (service.testCharacteristic(Kelvin)) {
-            service.getCharacteristic(Kelvin).removeAllListeners("get");
-            service.getCharacteristic(Kelvin).removeAllListeners("set");
-        }
-
-        if (/[Color|Original]/.test(this.accessory.context.model)) {
-            if (service.testCharacteristic(Characteristic.Hue)) {
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
-            }
-
-            if (service.testCharacteristic(Characteristic.Saturation)) {
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
-            }
+        if (service.testCharacteristic(Characteristic.Saturation)) {
+            service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
         }
     }
 }
