@@ -19,6 +19,7 @@
 //
 
 var inherits = require('util').inherits;
+var http = require('http');
 
 var LifxClient = require('node-lifx').Client;
 var LifxLight = require('node-lifx').Light;
@@ -62,6 +63,11 @@ function LifxLanPlatform(log, config, api) {
     this.api = api;
     this.accessories = {};
     this.log = log;
+
+    this.requestServer = http.createServer();
+    this.requestServer.listen(18091, function() {
+        self.log("Server Listening...");
+    });
 
     Client.on('light-offline', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
@@ -148,6 +154,48 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
     accessoryUnreachable(accessory);
     this.accessories[accessory.UUID] = accessory;
+}
+
+LifxLanPlatform.prototype.configurationRequestHandler = function(context, request, callback) {
+    var respDict = {};
+
+    if (request && request.response) {
+        if (request.response.selections) {
+            switch(context.onScreen) {
+                case "Remove":
+                    for (var i in request.response.selections.sort()) {
+                        this.removeAccessory(this.sortedAccessories[request.response.selections[i]]);
+                    }
+
+                    this.sortedAccessories = null;
+
+                    respDict = {
+                        "type": "Interface",
+                        "interface": "instruction",
+                        "title": "Finished",
+                        "detail": "Accessory removal was successful."
+                    }
+
+                    break;
+            }
+        }
+    }
+    else {
+        this.sortedAccessories = Object.keys(this.accessories).map(function(k){return this[k] instanceof LifxAccessory ? this[k].accessory : this[k]}, this.accessories).sort(compare);
+        var names = Object.keys(this.sortedAccessories).map(function(k) {return this[k].displayName}, this.sortedAccessories);
+
+        respDict = {
+            "type": "Interface",
+            "interface": "list",
+            "title": "Select accessory to remove",
+            "allowMultipleSelection": true,
+            "items": names
+        }
+
+        context.onScreen = "Remove";
+    }
+
+    callback(respDict);
 }
 
 LifxLanPlatform.prototype.removeAccessory = function(accessory) {
@@ -304,4 +352,16 @@ function accessoryUnreachable(accessory) {
             service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
         }
     }
+}
+
+function compare(a,b) {
+    if (a.displayName < b.displayName) {
+        return -1;
+    }
+
+    if (a.displayName > b.displayName) {
+        return 1;
+    }
+
+    return 0;
 }
