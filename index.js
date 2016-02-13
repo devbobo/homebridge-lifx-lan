@@ -8,6 +8,7 @@
 //         "platform": "LifxLan",           // required
 //         "name": "LiFx LAN",              // required
 //         "timeout": 30,                   // optional: timeout for Discovery (30 sec default)
+//         "duration": 1000,                // optional, the time to fade on/off in milliseconds
 
 //         ** optional node-lifx parameters **
 //         "lightOfflineTolerance": 3,       // optional: A light is offline if not seen for the given amount of discoveries
@@ -25,6 +26,8 @@ var Storage = require('node-persist');
 
 var Client = new LifxClient();
 var Characteristic, Kelvin, Service, uuid;
+
+var fadeDuration;
 
 module.exports = function(homebridge) {
     Characteristic = homebridge.hap.Characteristic;
@@ -51,6 +54,9 @@ module.exports = function(homebridge) {
 };
 
 function LifxLanPlatform(log, config) {
+    config = config || {};
+    fadeDuration = config.duration || 1000;
+
     var self = this;
 
     this.devices = {};
@@ -283,7 +289,7 @@ LifxBulbAccessory.prototype = {
         this.log("%s - Set %s: %d", this.name, type, value);
         this.color[type] = value;
 
-        this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, 0, function (err) {
+        this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, fadeDuration, function (err) {
             callback(null);
         });
     },
@@ -295,7 +301,7 @@ LifxBulbAccessory.prototype = {
 
         this.log("%s - Set power: %d", this.name, state);
 
-        this.bulb[state ? "on" : "off"](0, function(err) {
+        this.bulb[state ? "on" : "off"](fadeDuration, function(err) {
             callback(null);
         });
     }
