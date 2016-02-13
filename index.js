@@ -266,7 +266,7 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
     this.log("%s - Set %s: %d", this.accessory.displayName, type, value);
     this.color[type] = value;
 
-    this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, 0, function (err) {
+    this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, fadeDuration, function (err) {
         callback(null);
     });
 }
