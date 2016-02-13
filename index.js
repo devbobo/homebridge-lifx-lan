@@ -7,6 +7,7 @@
 //     {
 //         "platform": "LifxLan",           // required
 //         "name": "LiFx LAN",              // required
+//         "duration": 1000,                // optional, the time to fade on/off in milliseconds
 
 //         ** optional node-lifx parameters **
 //         "lightOfflineTolerance": 3,       // optional: A light is offline if not seen for the given amount of discoveries
@@ -26,6 +27,8 @@ var LifxLight = require('node-lifx').Light;
 
 var Client = new LifxClient();
 var Characteristic, Kelvin, PlatformAccessory, Service, UUIDGen;
+
+var fadeDuration;
 
 module.exports = function(homebridge) {
     PlatformAccessory = homebridge.platformAccessory;
@@ -58,6 +61,8 @@ module.exports = function(homebridge) {
 function LifxLanPlatform(log, config, api) {
     config = config || {};
 
+    fadeDuration = config.duration || 1000;
+
     var self = this;
 
     this.api = api;
@@ -85,7 +90,10 @@ function LifxLanPlatform(log, config, api) {
         var uuid = UUIDGen.generate(bulb.id);
         var object = self.accessories[uuid];
 
-        if (object !== undefined) {
+        if (object === undefined) {
+            self.addAccessory(bulb);
+        }
+        else {
             if (object instanceof LifxAccessory) {
                 self.log("Online: %s [%s]", object.accessory.displayName, bulb.id);
                 object.updateReachability(bulb, true);
@@ -152,7 +160,6 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
-    accessoryUnreachable(accessory);
     this.accessories[accessory.UUID] = accessory;
 }
 
@@ -267,7 +274,7 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
 LifxAccessory.prototype.setPower = function(state, callback) {
     this.log("%s - Set power: %d", this.accessory.displayName, state);
 
-    this.bulb[state ? "on" : "off"](0, function(err) {
+    this.bulb[state ? "on" : "off"](fadeDuration, function(err) {
         callback(null);
     });
 }
@@ -320,39 +327,31 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
             .setCharacteristic(Characteristic.SerialNumber, bulb.id);
     }
     else {
-        accessoryUnreachable(this.accessory);
-    }
-}
-
-function accessoryUnreachable(accessory) {
-    var service = accessory.getService(Service.Lightbulb);
-
-    accessory.updateReachability(false);
-
-    if (service.testCharacteristic(Characteristic.On)) {
-        service.getCharacteristic(Characteristic.On).removeAllListeners("get");
-        service.getCharacteristic(Characteristic.On).removeAllListeners("set");
-    }
-
-    if (service.testCharacteristic(Characteristic.Brightness)) {
-        service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
-        service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
-    }
-
-    if (service.testCharacteristic(Kelvin)) {
-        service.getCharacteristic(Kelvin).removeAllListeners("get");
-        service.getCharacteristic(Kelvin).removeAllListeners("set");
-    }
-
-    if (/[Color|Original]/.test(accessory.context.model)) {
-        if (service.testCharacteristic(Characteristic.Hue)) {
-            service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
+        if (service.testCharacteristic(Characteristic.On)) {
+            service.getCharacteristic(Characteristic.On).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.On).removeAllListeners("set");
         }
 
-        if (service.testCharacteristic(Characteristic.Saturation)) {
-            service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
+        if (service.testCharacteristic(Characteristic.Brightness)) {
+            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
+            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
+        }
+
+        if (service.testCharacteristic(Kelvin)) {
+            service.getCharacteristic(Kelvin).removeAllListeners("get");
+            service.getCharacteristic(Kelvin).removeAllListeners("set");
+        }
+
+        if (/[Color|Original]/.test(this.accessory.context.model)) {
+            if (service.testCharacteristic(Characteristic.Hue)) {
+                service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
+            }
+
+            if (service.testCharacteristic(Characteristic.Saturation)) {
+                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
+                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
+            }
         }
     }
 }
