@@ -59,7 +59,7 @@ module.exports = function(homebridge) {
 };
 
 function LifxLanPlatform(log, config, api) {
-    config = config || {};
+    this.config = config || {};
 
     fadeDuration = config.duration || 1000;
 
@@ -183,7 +183,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                         "detail": "Accessory removal was successful."
                     }
 
-                    break;
+                    callback(respDict, "platform", true, this.config);
             }
         }
     }
@@ -203,9 +203,8 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
         }
 
         context.onScreen = "Remove";
+        callback(respDict);
     }
-
-    callback(respDict);
 }
 
 LifxLanPlatform.prototype.removeAccessory = function(accessory) {
