@@ -124,11 +124,11 @@ function LifxLanPlatform(log, config, api) {
 
     this.api.on('didFinishLaunching', function() {
         Client.init({
-            debug:                  config.debug || false,
-            lightOfflineTolerance:  config.lightOfflineTolerance || 3,
-            messageHandlerTimeout:  config.messageHandlerTimeout || 45000,
-            resendMaxTimes:         config.resendMaxTimes || 3,
-            resendPacketDelay:      config.resendPacketDelay || 150
+            debug:                  this.config.debug || false,
+            lightOfflineTolerance:  this.config.lightOfflineTolerance || 3,
+            messageHandlerTimeout:  this.config.messageHandlerTimeout || 45000,
+            resendMaxTimes:         this.config.resendMaxTimes || 3,
+            resendPacketDelay:      this.config.resendPacketDelay || 150
         });
     }.bind(this));
 }
