@@ -185,7 +185,13 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                         "detail": "Accessory removal was successful."
                     }
 
+                    context.onScreen = "Complete";
+                    callback(respDict);
+                    break;
+                case "Complete":
+                default:
                     callback(respDict, "platform", true, this.config);
+                    break;
             }
         }
     }
