@@ -30,8 +30,7 @@ Configuration sample:
 "platforms": [
     {
         "platform": "LifxLan",
-        "name": "LiFx",
-        "timeout" : "30"
+        "name": "LiFx"
     }
 ]
 
