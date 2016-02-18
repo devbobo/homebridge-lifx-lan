@@ -151,7 +151,17 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 accessory.context.model = data.productName;
 
                 self.log("Found: %s [%s]", state.label, bulb.id);
-                accessory.addService(Service.Lightbulb).addOptionalCharacteristic(Kelvin);
+
+                var service = accessory.addService(Service.Lightbulb);
+
+                service.addCharacteristic(Characteristic.Brightness);
+                service.addCharacteristic(Kelvin);
+
+                if (/[Color|Original]/.test(accessory.context.model)) {
+                    service.addCharacteristic(Characteristic.Hue);
+                    service.addCharacteristic(Characteristic.Saturation);
+                }
+
                 self.accessories[accessory.UUID] = new LifxAccessory(self.log, accessory, bulb, data);
 
                 self.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
@@ -164,14 +174,24 @@ LifxLanPlatform.prototype.configureAccessory = function(accessory) {
 }
 
 LifxLanPlatform.prototype.configurationRequestHandler = function(context, request, callback) {
+    var self = this;
     var respDict = {};
 
     if (request && request.type === "Terminate") {
         context.onScreen = null;
     }
 
+    var sortAccessories = function() {
+        self.sortedAccessories = Object.keys(self.accessories).map(
+            function(k){return this[k] instanceof PlatformAccessory ? this[k] : this[k].accessory},
+            self.accessories
+        ).sort(function(a,b) {if (a.displayName < b.displayName) return -1; if (a.displayName > b.displayName) return 1; return 0});
+
+        return Object.keys(self.sortedAccessories).map(function(k) {return this[k].displayName}, self.sortedAccessories);
+    }
+
     switch(context.onScreen) {
-        case "Remove":
+        case "DoRemove":
             if (request.response.selections) {
                 for (var i in request.response.selections.sort()) {
                     this.removeAccessory(this.sortedAccessories[request.response.selections[i]]);
@@ -186,33 +206,155 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     "detail": "Accessory removal was successful."
                 }
 
-                context.onScreen = "Complete";
+                context.onScreen = null;
                 callback(respDict);
-                break;
             }
-        case "Complete":
+            else {
+                context.onScreen = null;
+                callback(respDict, "platform", true, this.config);
+            }
+            break;
+        case "DoModify":
+            context.accessory = this.sortedAccessories[request.response.selections[0]];
+            context.canAddCharacteristic = [];
+            context.canRemoveCharacteristic = [];
+
+            var service = context.accessory.getService(Service.Lightbulb);
+            var characteristics;
+
+            if (/[Color|Original]/.test(context.accessory.context.model)) {
+                characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+            }
+            else {
+                characteristics = [Characteristic.Brightness, Kelvin];
+            }
+
+            for (var index in characteristics) {
+                var characteristic = characteristics[index];
+
+                if (service.testCharacteristic(characteristic)) {
+                    context.canRemoveCharacteristic.push(characteristic);
+                }
+                else {
+                    context.canAddCharacteristic.push(characteristic);
+                }
+            }
+
+            var items = [];
+
+            if (context.canAddCharacteristic.length > 0) {
+                items.push("Add Characteristic");
+            }
+
+            if (context.canRemoveCharacteristic.length > 0) {
+                items.push("Remove Characteristic");
+            }
+
+            respDict = {
+                "type": "Interface",
+                "interface": "list",
+                "title": "Select action for " + context.accessory.displayName,
+                "allowMultipleSelection": false,
+                "items": items
+            }
+
+            context.onScreen = "ModifyCharacteristic";
+
+            callback(respDict);
+            break;
+        case "ModifyCharacteristic":
+            if (context.canAddCharacteristic.length > 0) {
+                context.onScreen = context.canRemoveCharacteristic.length > 0 && request.response.selections[0] == 1 ? "RemoveCharacteristic" : "AddCharacteristic";
+            }
+            else {
+                context.onScreen = "RemoveCharacteristic";
+            }
+
+            var items = [];
+
+            for (var index in context["can" + context.onScreen]) {
+                var characteristic = new (Function.prototype.bind.apply(context["can" + context.onScreen][index], arguments));
+                items.push(characteristic.displayName);
+            }
+
+            respDict = {
+                "type": "Interface",
+                "interface": "list",
+                "title": "Select characteristc to " + (context.onScreen == "RemoveCharacteristic" ? "remove" : "add"),
+                "allowMultipleSelection": true,
+                "items": items
+            }
+
+            callback(respDict);
+            break;
+        case "AddCharacteristic":
+        case "RemoveCharacteristic":
+            if (request.response.selections) {
+                var service = context.accessory.getService(Service.Lightbulb);
+
+                for (var i in request.response.selections.sort()) {
+                    var item = context["can" + context.onScreen][i];
+                    var characteristic = service.getCharacteristic(item);
+
+                    if (context.onScreen == "RemoveCharacteristic") {
+                        service.removeCharacteristic(characteristic);
+                    }
+                    else {
+                        if (characteristic == null) {
+                            service.addCharacteristic(item);
+                        }
+
+                        if (self.accessories[context.accessory.UUID] instanceof LifxAccessory) {
+                            self.accessories[context.accessory.UUID].updateEventHandlers(item);
+                        }
+                    }
+                }
+
+                respDict = {
+                    "type": "Interface",
+                    "interface": "instruction",
+                    "title": "Finished",
+                    "detail": "Accessory characteristic " + (context.onScreen == "RemoveCharacteristic" ? "removal" : "addition") + " was successful."
+                }
+
+                context.onScreen = null;
+                callback(respDict);
+            }
+            else {
+                context.onScreen = null;
+                callback(respDict, "platform", true, this.config);
+            }
+            break;
+        case "Menu":
+            context.onScreen = request && request.response && request.response.selections[0] == 1 ? "Remove" : "Modify";
+        case "Modify":
+        case "Remove":
+            respDict = {
+                "type": "Interface",
+                "interface": "list",
+                "title": "Select accessory to " + context.onScreen.toLowerCase(),
+                "allowMultipleSelection": context.onScreen == "Remove",
+                "items": sortAccessories()
+            }
+
+            context.onScreen = "Do" + context.onScreen;
+            callback(respDict);
+            break;
         default:
             if (request && (request.response || request.type === "Terminate")) {
                 context.onScreen = null;
                 callback(respDict, "platform", true, this.config);
             }
             else {
-                this.sortedAccessories = Object.keys(this.accessories).map(
-                    function(k){return this[k] instanceof PlatformAccessory ? this[k] : this[k].accessory},
-                    this.accessories
-                ).sort(function(a,b) {if (a.displayName < b.displayName) return -1; if (a.displayName > b.displayName) return 1; return 0});
-
-                var names = Object.keys(this.sortedAccessories).map(function(k) {return this[k].displayName}, this.sortedAccessories);
-
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
                     "title": "Select accessory to remove",
-                    "allowMultipleSelection": true,
-                    "items": names
+                    "allowMultipleSelection": false,
+                    "items": ["Modify Accessory", "Remove Accessory"]
                 }
 
-                context.onScreen = "Remove";
+                context.onScreen = "Menu";
                 callback(respDict);
             }
     }
@@ -289,79 +431,70 @@ LifxAccessory.prototype.setPower = function(state, callback) {
     });
 }
 
-LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
-    this.accessory.updateReachability(reachable);
-    this.bulb = bulb;
-
+LifxAccessory.prototype.updateEventHandlers = function(characteristic) {
     var self = this;
     var service = this.accessory.getService(Service.Lightbulb);
 
-    if (reachable === true) {
+    if (service.testCharacteristic(characteristic) === false) {
+        return;
+    }
+
+    service.getCharacteristic(characteristic).removeAllListeners();
+
+    if (this.accessory.reachable !== true) {
+        return;
+    }
+
+    switch(characteristic) {
+        case Characteristic.On:
             service
-            .getCharacteristic(Characteristic.On)
-            .setValue(this.power > 0)
-            .on('get', function(callback) {self.getState("power", callback)})
-            .on('set', function(value, callback) {self.setPower(value, callback)});
-
-        service
-            .getCharacteristic(Characteristic.Brightness)
-            .setValue(this.color.brightness)
-            .setProps({minValue: 1})
-            .on('get', function(callback) {self.getState("brightness", callback)})
-            .on('set', function(value, callback) {self.setColor("brightness", value, callback)});
-
-        service
-            .getCharacteristic(Kelvin)
-            .setValue(this.color.kelvin)
-            .on('get', function(callback) {self.getState("kelvin", callback)})
-            .on('set', function(value, callback) {self.setColor("kelvin", value, callback)});
-
-        if (/[Color|Original]/.test(this.accessory.context.model)) {
+                .getCharacteristic(Characteristic.On)
+                .setValue(this.power > 0)
+                .on('get', function(callback) {self.getState("power", callback)})
+                .on('set', function(value, callback) {self.setPower(value, callback)});
+            break;
+        case Characteristic.Brightness:
+            service
+                .getCharacteristic(Characteristic.Brightness)
+                .setValue(this.color.brightness)
+                .setProps({minValue: 1})
+                .on('get', function(callback) {self.getState("brightness", callback)})
+                .on('set', function(value, callback) {self.setColor("brightness", value, callback)});
+            break;
+        case Kelvin:
+            service
+                .getCharacteristic(Kelvin)
+                .setValue(this.color.kelvin)
+                .on('get', function(callback) {self.getState("kelvin", callback)})
+                .on('set', function(value, callback) {self.setColor("kelvin", value, callback)});
+            break;
+        case Characteristic.Hue:
             service
                 .getCharacteristic(Characteristic.Hue)
                 .setValue(this.color.hue)
                 .on('get', function(callback) {self.getState("hue", callback)})
                 .on('set', function(value, callback) {self.setColor("hue", value, callback)});
-
+            break;
+        case Characteristic.Saturation:
             service
                 .getCharacteristic(Characteristic.Saturation)
                 .setValue(this.color.saturation)
                 .on('get', function(callback) {self.getState("saturation", callback)})
                 .on('set', function(value, callback) {self.setColor("saturation", value, callback)});
-        }
-
-        this.accessory
-            .getService(Service.AccessoryInformation)
-            .setCharacteristic(Characteristic.Manufacturer, this.accessory.context.make)
-            .setCharacteristic(Characteristic.Model, this.accessory.context.model)
-            .setCharacteristic(Characteristic.SerialNumber, bulb.id);
+            break;
     }
-    else {
-        if (service.testCharacteristic(Characteristic.On)) {
-            service.getCharacteristic(Characteristic.On).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.On).removeAllListeners("set");
-        }
+}
 
-        if (service.testCharacteristic(Characteristic.Brightness)) {
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("get");
-            service.getCharacteristic(Characteristic.Brightness).removeAllListeners("set");
-        }
+LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
+    this.accessory.updateReachability(reachable);
+    this.bulb = bulb;
 
-        if (service.testCharacteristic(Kelvin)) {
-            service.getCharacteristic(Kelvin).removeAllListeners("get");
-            service.getCharacteristic(Kelvin).removeAllListeners("set");
-        }
+    this.updateEventHandlers(Characteristic.On);
+    this.updateEventHandlers(Characteristic.Brightness);
+    this.updateEventHandlers(Kelvin);
 
-        if (/[Color|Original]/.test(this.accessory.context.model)) {
-            if (service.testCharacteristic(Characteristic.Hue)) {
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Hue).removeAllListeners("set");
-            }
-
-            if (service.testCharacteristic(Characteristic.Saturation)) {
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("get");
-                service.getCharacteristic(Characteristic.Saturation).removeAllListeners("set");
-            }
-        }
+    if (/[Color|Original]/.test(this.accessory.context.model)) {
+        this.updateEventHandlers(Characteristic.Hue);
+        this.updateEventHandlers(Characteristic.Saturation);
     }
 }
