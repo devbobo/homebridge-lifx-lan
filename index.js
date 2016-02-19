@@ -182,22 +182,20 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
     }
 
     var sortAccessories = function() {
-        self.sortedAccessories = Object.keys(self.accessories).map(
+        context.sortedAccessories = Object.keys(self.accessories).map(
             function(k){return this[k] instanceof PlatformAccessory ? this[k] : this[k].accessory},
             self.accessories
         ).sort(function(a,b) {if (a.displayName < b.displayName) return -1; if (a.displayName > b.displayName) return 1; return 0});
 
-        return Object.keys(self.sortedAccessories).map(function(k) {return this[k].displayName}, self.sortedAccessories);
+        return Object.keys(context.sortedAccessories).map(function(k) {return this[k].displayName}, context.sortedAccessories);
     }
 
     switch(context.onScreen) {
         case "DoRemove":
             if (request.response.selections) {
                 for (var i in request.response.selections.sort()) {
-                    this.removeAccessory(this.sortedAccessories[request.response.selections[i]]);
+                    this.removeAccessory(context.sortedAccessories[request.response.selections[i]]);
                 }
-
-                this.sortedAccessories = null;
 
                 respDict = {
                     "type": "Interface",
@@ -215,7 +213,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             }
             break;
         case "DoModify":
-            context.accessory = this.sortedAccessories[request.response.selections[0]];
+            context.accessory = context.sortedAccessories[request.response.selections[0]];
             context.canAddCharacteristic = [];
             context.canRemoveCharacteristic = [];
 
@@ -349,7 +347,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
-                    "title": "Select accessory to remove",
+                    "title": "Select option",
                     "allowMultipleSelection": false,
                     "items": ["Modify Accessory", "Remove Accessory"]
                 }
