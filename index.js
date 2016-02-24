@@ -144,11 +144,20 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
             }
 
             bulb.getHardwareVersion(function(err, data) {
+                if (err) {
+                    data = {}
+                }
+
                 var name = state.label || "LiFx " + bulb.id;
                 var accessory = new PlatformAccessory(name, UUIDGen.generate(bulb.id));
 
-                accessory.context.make = data.vendorName;
-                accessory.context.model = data.productName;
+                accessory.context.make = data.vendorName || "LIFX";
+                accessory.context.model = data.productName || "Unknown";
+
+                accessory.getService(Service.AccessoryInformation)
+                    .setCharacteristic(Characteristic.Manufacturer, accessory.context.make)
+                    .setCharacteristic(Characteristic.Model, accessory.context.model)
+                    .setCharacteristic(Characteristic.SerialNumber, bulb.id);
 
                 self.log("Found: %s [%s]", state.label, bulb.id);
 
@@ -429,6 +438,44 @@ LifxAccessory.prototype.setPower = function(state, callback) {
     });
 }
 
+LifxAccessory.prototype.updateInfo = function() {
+    var self = this;
+
+    var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
+
+    if (model !== "Unknown" && model !== "Default-Model") {
+        return;
+    }
+
+    this.bulb.getHardwareVersion(function(err, data) {
+        if (err) {
+            data = {}
+        }
+
+        self.accessory.context.make = data.vendorName || "LIFX";
+        self.accessory.context.model = data.productName || "Unknown";
+
+        self.accessory.getService(Service.AccessoryInformation)
+            .setCharacteristic(Characteristic.Manufacturer, self.accessory.context.make)
+            .setCharacteristic(Characteristic.Model, self.accessory.context.model)
+            .setCharacteristic(Characteristic.SerialNumber, self.bulb.id);
+
+        if (/[Color|Original]/.test(self.accessory.context.model)) {
+            var service = self.accessory.getService(Service.Lightbulb);
+
+            if (service.testCharacteristic(Characteristic.Hue) === false) {
+                service.addCharacteristic(Characteristic.Hue);
+                self.updateEventHandlers(Characteristic.Hue);
+            }
+
+            if (service.testCharacteristic(Characteristic.Saturation) === false) {
+                service.addCharacteristic(Characteristic.Saturation);
+                self.updateEventHandlers(Characteristic.Saturation);
+            }
+        }
+    });
+}
+
 LifxAccessory.prototype.updateEventHandlers = function(characteristic) {
     var self = this;
     var service = this.accessory.getService(Service.Lightbulb);
@@ -494,5 +541,9 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
     if (/[Color|Original]/.test(this.accessory.context.model)) {
         this.updateEventHandlers(Characteristic.Hue);
         this.updateEventHandlers(Characteristic.Saturation);
+    }
+
+    if (reachable === true) {
+        this.updateInfo();
     }
 }
