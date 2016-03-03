@@ -70,6 +70,11 @@ function LifxLanPlatform(log, config, api) {
     this.log = log;
 
     this.requestServer = http.createServer();
+
+    this.requestServer.on('error', function(err) {
+
+    });
+
     this.requestServer.listen(18091, function() {
         self.log("Server Listening...");
     });
@@ -378,10 +383,16 @@ LifxLanPlatform.prototype.removeAccessory = function(accessory) {
 }
 
 function LifxAccessory(log, accessory, bulb, data) {
+    var self = this;
     this.accessory = accessory;
     this.power = data.power || 0;
     this.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
     this.log = log;
+
+    this.accessory.on('identify', function(paired, callback) {
+        self.log("%s - identify", self.accessory.displayName);
+        callback();
+    });
 
     this.updateReachability(bulb, true);
 }
