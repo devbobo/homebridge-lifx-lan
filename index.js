@@ -61,7 +61,7 @@ module.exports = function(homebridge) {
 function LifxLanPlatform(log, config, api) {
     this.config = config || {};
 
-    fadeDuration = config.duration || 1000;
+    fadeDuration = this.config.duration || 1000;
 
     var self = this;
 
