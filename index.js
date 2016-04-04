@@ -10,6 +10,7 @@
 //         "duration": 1000,                // optional, the time to fade on/off in milliseconds
 
 //         ** optional node-lifx parameters **
+//         "broadcast": '255.255.255.255',   // optional: Broadcast address for bulb discovery
 //         "lightOfflineTolerance": 3,       // optional: A light is offline if not seen for the given amount of discoveries
 //         "messageHandlerTimeout": 45000,   // optional: in ms, if not answer in time an error is provided to get methods
 //         "resendPacketDelay": 150,         // optional: delay between packages if light did not receive a packet (for setting methods with callback)
@@ -130,6 +131,7 @@ function LifxLanPlatform(log, config, api) {
     this.api.on('didFinishLaunching', function() {
         Client.init({
             debug:                  this.config.debug || false,
+            broadcast:              this.config.broadcast || '255.255.255.255',
             lightOfflineTolerance:  this.config.lightOfflineTolerance || 3,
             messageHandlerTimeout:  this.config.messageHandlerTimeout || 45000,
             resendMaxTimes:         this.config.resendMaxTimes || 3,
