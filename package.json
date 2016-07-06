@@ -1,6 +1,6 @@
 {
     "name": "homebridge-lifx-lan",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "LiFx LAN platform plugin for Homebridge",
     "homepage": "https://github.com/devbobo/homebridge-lifx-lan#readme",
     "repository": {
@@ -26,6 +26,6 @@
         "smart bulb"
     ],
     "dependencies": {
-        "node-lifx": ">=0.5.1"
+        "node-lifx": ">=0.6.0"
     }
 }
