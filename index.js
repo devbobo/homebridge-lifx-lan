@@ -86,7 +86,7 @@ function LifxLanPlatform(log, config, api) {
 
         if (object !== undefined) {
             if (object instanceof LifxAccessory) {
-                self.log("Offline: %s [%s]", object.accessory.displayName, bulb.id);
+                self.log("Offline: %s [%s]", object.accessory.context.name, bulb.id);
                 object.updateReachability(bulb, false);
             }
         }
@@ -101,7 +101,7 @@ function LifxLanPlatform(log, config, api) {
         }
         else {
             if (object instanceof LifxAccessory) {
-                self.log("Online: %s [%s]", object.accessory.displayName, bulb.id);
+                self.log("Online: %s [%s]", object.accessory.context.name, bulb.id);
                 object.updateReachability(bulb, true);
             }
         }
@@ -122,7 +122,7 @@ function LifxLanPlatform(log, config, api) {
                     }
                 }
 
-                self.log("Online: %s [%s]", accessory.displayName, bulb.id);
+                self.log("Online: %s [%s]", accessory.context.name, bulb.id);
                 self.accessories[uuid] = new LifxAccessory(self.log, accessory, bulb, state);
             });
         }
@@ -132,9 +132,9 @@ function LifxLanPlatform(log, config, api) {
         Client.init({
             debug:                  this.config.debug || false,
             broadcast:              this.config.broadcast || '255.255.255.255',
-            lightOfflineTolerance:  this.config.lightOfflineTolerance || 3,
+            lightOfflineTolerance:  this.config.lightOfflineTolerance || 5,
             messageHandlerTimeout:  this.config.messageHandlerTimeout || 45000,
-            resendMaxTimes:         this.config.resendMaxTimes || 3,
+            resendMaxTimes:         this.config.resendMaxTimes || 4,
             resendPacketDelay:      this.config.resendPacketDelay || 150
         });
     }.bind(this));
@@ -155,9 +155,10 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                     data = {}
                 }
 
-                var name = state.label || "LiFx " + bulb.id;
+                var name = "LIFX " + bulb.id.replace(/d073d5/, "");
                 var accessory = new PlatformAccessory(name, UUIDGen.generate(bulb.id));
 
+                accessory.context.name = state.label || name;
                 accessory.context.make = data.vendorName || "LIFX";
                 accessory.context.model = data.productName || "Unknown";
 
@@ -166,9 +167,9 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                     .setCharacteristic(Characteristic.Model, accessory.context.model)
                     .setCharacteristic(Characteristic.SerialNumber, bulb.id);
 
-                self.log("Found: %s [%s]", state.label, bulb.id);
+                self.log("Found: %s [%s]", accessory.context.name, bulb.id);
 
-                var service = accessory.addService(Service.Lightbulb);
+                var service = accessory.addService(Service.Lightbulb, accessory.context.name);
 
                 service.addCharacteristic(Characteristic.Brightness);
                 service.addCharacteristic(Kelvin);
@@ -201,9 +202,9 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
         context.sortedAccessories = Object.keys(self.accessories).map(
             function(k){return this[k] instanceof PlatformAccessory ? this[k] : this[k].accessory},
             self.accessories
-        ).sort(function(a,b) {if (a.displayName < b.displayName) return -1; if (a.displayName > b.displayName) return 1; return 0});
+        ).sort(function(a,b) {if (a.context.name < b.context.name) return -1; if (a.context.name > b.context.name) return 1; return 0});
 
-        return Object.keys(context.sortedAccessories).map(function(k) {return this[k].displayName}, context.sortedAccessories);
+        return Object.keys(context.sortedAccessories).map(function(k) {return this[k].context.name}, context.sortedAccessories);
     }
 
     switch(context.onScreen) {
@@ -267,7 +268,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             respDict = {
                 "type": "Interface",
                 "interface": "list",
-                "title": "Select action for " + context.accessory.displayName,
+                "title": "Select action for " + context.accessory.context.name,
                 "allowMultipleSelection": false,
                 "items": items
             }
@@ -375,7 +376,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
 }
 
 LifxLanPlatform.prototype.removeAccessory = function(accessory) {
-    this.log("Remove: %s", accessory.displayName);
+    this.log("Remove: %s", accessory.context.name);
 
     if (this.accessories[accessory.UUID]) {
         delete this.accessories[accessory.UUID];
@@ -391,8 +392,17 @@ function LifxAccessory(log, accessory, bulb, data) {
     this.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
     this.log = log;
 
+    if (!this.accessory instanceof PlatformAccessory) {
+        this.log("ERROR \n", this);
+        return;
+    }
+
+    if (this.accessory.context.name === undefined) {
+        this.accessory.context.name = this.accessory.displayName;
+    }
+
     this.accessory.on('identify', function(paired, callback) {
-        self.log("%s - identify", self.accessory.displayName);
+        self.log("%s - identify", self.accessory.context.name);
         callback();
     });
 
@@ -407,11 +417,11 @@ LifxAccessory.prototype.get = function (type) {
         case "hue":
         case "kelvin":
         case "saturation":
-            this.log("%s - Get %s: %d", this.accessory.displayName, type, this.color[type]);
+            this.log("%s - Get %s: %d", this.accessory.context.name, type, this.color[type]);
             state = this.color[type];
             break;
         case "power":
-            this.log("%s - Get power: %d", this.accessory.displayName, this.power);
+            this.log("%s - Get power: %d", this.accessory.context.name, this.power);
             state = this.power > 0;
             break;
     }
@@ -435,7 +445,7 @@ LifxAccessory.prototype.getState = function(type, callback){
 LifxAccessory.prototype.setColor = function(type, value, callback){
     var color;
 
-    this.log("%s - Set %s: %d", this.accessory.displayName, type, value);
+    this.log("%s - Set %s: %d", this.accessory.context.name, type, value);
     this.color[type] = value;
 
     this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, fadeDuration, function (err) {
@@ -444,7 +454,7 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
 }
 
 LifxAccessory.prototype.setPower = function(state, callback) {
-    this.log("%s - Set power: %d", this.accessory.displayName, state);
+    this.log("%s - Set power: %d", this.accessory.context.name, state);
 
     this.bulb[state ? "on" : "off"](fadeDuration, function(err) {
         callback(null);
