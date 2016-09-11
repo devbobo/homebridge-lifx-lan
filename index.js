@@ -25,11 +25,15 @@ var http = require('http');
 
 var LifxClient = require('node-lifx').Client;
 var LifxLight = require('node-lifx').Light;
+var LifxPacket = require('node-lifx').packet;
+var LifxConstants = require('node-lifx').constants;
 
 var Client = new LifxClient();
 var Characteristic, Kelvin, PlatformAccessory, Service, UUIDGen;
 
 var fadeDuration;
+
+const UUID_KELVIN = 'C4E24248-04AC-44AF-ACFF-40164E829DBA';
 
 module.exports = function(homebridge) {
     PlatformAccessory = homebridge.platformAccessory;
@@ -39,7 +43,7 @@ module.exports = function(homebridge) {
     UUIDGen = homebridge.hap.uuid;
 
     Kelvin = function() {
-        Characteristic.call(this, 'Kelvin', 'C4E24248-04AC-44AF-ACFF-40164E829DBA')
+        Characteristic.call(this, 'Kelvin', UUID_KELVIN)
 
         this.setProps({
             format: Characteristic.Formats.UINT16,
@@ -54,7 +58,7 @@ module.exports = function(homebridge) {
     };
     inherits(Kelvin, Characteristic);
 
-    Kelvin.UUID = 'C4E24248-04AC-44AF-ACFF-40164E829DBA';
+    Kelvin.UUID = UUID_KELVIN;
 
     homebridge.registerPlatform("homebridge-lifx-lan", "LifxLan", LifxLanPlatform, true);
 };
@@ -174,9 +178,13 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 service.addCharacteristic(Characteristic.Brightness);
                 service.addCharacteristic(Kelvin);
 
-                if (/[Color|Original]/.test(accessory.context.model)) {
+                if (/(Color|Original)/.test(accessory.context.model)) {
                     service.addCharacteristic(Characteristic.Hue);
                     service.addCharacteristic(Characteristic.Saturation);
+                }
+
+                if (/(650|Original)/.test(accessory.context.model) === false) {
+                    service.addCharacteristic(Characteristic.CurrentAmbientLightLevel);
                 }
 
                 self.accessories[accessory.UUID] = new LifxAccessory(self.log, accessory, bulb, data);
@@ -237,11 +245,14 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             var service = context.accessory.getService(Service.Lightbulb);
             var characteristics;
 
-            if (/[Color|Original]/.test(context.accessory.context.model)) {
+            if (/(650|Original)/.test(context.accessory.context.model)) {
                 characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
             }
+            else if (/Color/.test(context.accessory.context.model)) {
+                characteristics = [Characteristic.Brightness, Characteristic.CurrentAmbientLightLevel, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+            }
             else {
-                characteristics = [Characteristic.Brightness, Kelvin];
+                characteristics = [Characteristic.Brightness, Characteristic.CurrentAmbientLightLevel, Kelvin];
             }
 
             for (var index in characteristics) {
@@ -429,6 +440,21 @@ LifxAccessory.prototype.get = function (type) {
     return state;
 }
 
+LifxAccessory.prototype.getAmbientLight = function(callback) {
+    var self = this;
+
+    this.bulb.getAmbientLight(function(err, data) {
+        var lux;
+
+        if (data) {
+            lux = parseInt(data * 1000) / 1000;
+        }
+
+        self.log("%s - Get ambient light: %d", self.accessory.context.name, lux);
+        callback(null, lux);
+    });
+}
+
 LifxAccessory.prototype.getState = function(type, callback){
     var self = this;
 
@@ -461,6 +487,33 @@ LifxAccessory.prototype.setPower = function(state, callback) {
     });
 }
 
+LifxAccessory.prototype.setWaveform = function(hue, period, cycles, skewRatio, waveform, callback) {
+    var light = this.accessory.getService(Service.Lightbulb);
+
+    var packetObj = LifxPacket.create('setWaveform', {
+        isTransient: true,
+        color: {
+            hue: parseInt(hue * 65535 / 360),
+            saturation: 65535,
+            brightness: 65535,
+            kelvin: 3500
+        },
+        period: period,
+        cycles: cycles,
+        skewRatio: skewRatio,
+        // [0] = SAW, [1] = SINE, [2] = HALF_SINE, [3] = TRIANGLE, [4] = PULSE
+        waveform: waveform
+    }, Client.source);
+
+    packetObj.target = this.bulb.id; // light id
+
+    Client.send(packetObj, function() {
+        if (callback) {
+            callback(null);
+        }
+    });
+}
+
 LifxAccessory.prototype.updateInfo = function() {
     var self = this;
 
@@ -483,7 +536,7 @@ LifxAccessory.prototype.updateInfo = function() {
             .setCharacteristic(Characteristic.Model, self.accessory.context.model)
             .setCharacteristic(Characteristic.SerialNumber, self.bulb.id);
 
-        if (/[Color|Original]/.test(self.accessory.context.model)) {
+        if (/(Color|Original)/.test(self.accessory.context.model)) {
             var service = self.accessory.getService(Service.Lightbulb);
 
             if (service.testCharacteristic(Characteristic.Hue) === false) {
@@ -529,6 +582,11 @@ LifxAccessory.prototype.updateEventHandlers = function(characteristic) {
                 .on('get', function(callback) {self.getState("brightness", callback)})
                 .on('set', function(value, callback) {self.setColor("brightness", value, callback)});
             break;
+        case Characteristic.CurrentAmbientLightLevel:
+            service
+                .getCharacteristic(Characteristic.CurrentAmbientLightLevel)
+                .on('get', function(callback) {self.getAmbientLight(callback)});
+            break;
         case Kelvin:
             service
                 .getCharacteristic(Kelvin)
@@ -559,9 +617,10 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
 
     this.updateEventHandlers(Characteristic.On);
     this.updateEventHandlers(Characteristic.Brightness);
+    this.updateEventHandlers(Characteristic.CurrentAmbientLightLevel);
     this.updateEventHandlers(Kelvin);
 
-    if (/[Color|Original]/.test(this.accessory.context.model)) {
+    if (/(Color|Original)/.test(this.accessory.context.model)) {
         this.updateEventHandlers(Characteristic.Hue);
         this.updateEventHandlers(Characteristic.Saturation);
     }
