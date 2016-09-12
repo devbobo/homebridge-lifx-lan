@@ -412,6 +412,16 @@ function LifxAccessory(log, accessory, bulb, data) {
         this.accessory.context.name = this.accessory.displayName;
     }
 
+    var service = this.accessory.getService(Service.Lightbulb);
+
+    if (service.testCharacteristic(Characteristic.Name) === false) {
+        service.addCharacteristic(Characteristic.Name);
+    }
+
+    if (service.getCharacteristic(Characteristic.Name).value === undefined) {
+        service.getCharacteristic(Characteristic.Name).setValue(this.accessory.context.name);
+    }
+
     this.accessory.on('identify', function(paired, callback) {
         self.log("%s - identify", self.accessory.context.name);
         callback();
