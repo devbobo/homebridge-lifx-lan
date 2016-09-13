@@ -527,6 +527,20 @@ LifxAccessory.prototype.setWaveform = function(hue, period, cycles, skewRatio, w
 LifxAccessory.prototype.updateInfo = function() {
     var self = this;
 
+    this.bulb.getFirmwareVersion(function(err, data) {
+        if (err) {
+            return;
+        }
+
+        var service = self.accessory.getService(Service.AccessoryInformation);
+
+        if (service.testCharacteristic(Characteristic.FirmwareRevision) === false) {
+            service.addCharacteristic(Characteristic.FirmwareRevision);
+        }
+
+        service.setCharacteristic(Characteristic.FirmwareRevision, data.majorVersion + "." + data.minorVersion);
+    });
+
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
     if (model !== "Unknown" && model !== "Default-Model") {
