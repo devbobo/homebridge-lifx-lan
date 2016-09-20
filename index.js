@@ -21,7 +21,6 @@
 //
 
 var inherits = require('util').inherits;
-var http = require('http');
 
 var LifxClient = require('node-lifx').Client;
 var LifxLight = require('node-lifx').Light;
@@ -73,16 +72,6 @@ function LifxLanPlatform(log, config, api) {
     this.api = api;
     this.accessories = {};
     this.log = log;
-
-    this.requestServer = http.createServer();
-
-    this.requestServer.on('error', function(err) {
-
-    });
-
-    this.requestServer.listen(18091, function() {
-        self.log("Server Listening...");
-    });
 
     Client.on('light-offline', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
@@ -472,6 +461,7 @@ LifxAccessory.prototype.getState = function(type, callback){
         if (data) {
             self.power = data.power;
             self.color = data.color;
+            self.accessory.updateReachability(true);
         }
 
         callback(null, self.get(type));
