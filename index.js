@@ -411,6 +411,11 @@ function LifxAccessory(log, accessory, bulb, data) {
         service.getCharacteristic(Characteristic.Name).setValue(this.accessory.context.name);
     }
 
+    if (service.testCharacteristic(Characteristic.CurrentAmbientLightLevel)) {
+        service.removeCharacteristic(service.getCharacteristic(Characteristic.CurrentAmbientLightLevel));
+        accessory.addService(Service.LightSensor, accessory.context.name);
+    }
+
     this.accessory.on('identify', function(paired, callback) {
         self.log("%s - identify", self.accessory.context.name);
         callback();
