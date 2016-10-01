@@ -67,45 +67,43 @@ function LifxLanPlatform(log, config, api) {
 
     fadeDuration = this.config.duration || 1000;
 
-    var self = this;
-
     this.api = api;
     this.accessories = {};
     this.log = log;
 
     Client.on('light-offline', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
-        var object = self.accessories[uuid];
+        var object = this.accessories[uuid];
 
         if (object !== undefined) {
             if (object instanceof LifxAccessory) {
-                self.log("Offline: %s [%s]", object.accessory.context.name, bulb.id);
+                this.log("Offline: %s [%s]", object.accessory.context.name, bulb.id);
                 object.updateReachability(bulb, false);
             }
         }
-    });
+    }.bind(this));
 
     Client.on('light-online', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
-        var object = self.accessories[uuid];
+        var object = this.accessories[uuid];
 
         if (object === undefined) {
-            self.addAccessory(bulb);
+            this.addAccessory(bulb);
         }
         else {
             if (object instanceof LifxAccessory) {
-                self.log("Online: %s [%s]", object.accessory.context.name, bulb.id);
+                this.log("Online: %s [%s]", object.accessory.context.name, bulb.id);
                 object.updateReachability(bulb, true);
             }
         }
-    });
+    }.bind(this));
 
     Client.on('light-new', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
-        var accessory = self.accessories[uuid];
+        var accessory = this.accessories[uuid];
 
         if (accessory === undefined) {
-            self.addAccessory(bulb);
+            this.addAccessory(bulb);
         }
         else {
             bulb.getState(function(err, state) {
@@ -115,11 +113,11 @@ function LifxLanPlatform(log, config, api) {
                     }
                 }
 
-                self.log("Online: %s [%s]", accessory.context.name, bulb.id);
-                self.accessories[uuid] = new LifxAccessory(self.log, accessory, bulb, state);
-            });
+                this.log("Online: %s [%s]", accessory.context.name, bulb.id);
+                this.accessories[uuid] = new LifxAccessory(this.log, accessory, bulb, state);
+            }.bind(this));
         }
-    });
+    }.bind(this));
 
     this.api.on('didFinishLaunching', function() {
         Client.init({
@@ -134,8 +132,6 @@ function LifxLanPlatform(log, config, api) {
 }
 
 LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
-    var self = this;
-
     bulb.getState(function(err, state) {
             if (err) {
                 state = {
@@ -160,7 +156,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                     .setCharacteristic(Characteristic.Model, accessory.context.model)
                     .setCharacteristic(Characteristic.SerialNumber, bulb.id);
 
-                self.log("Found: %s [%s]", accessory.context.name, bulb.id);
+                this.log("Found: %s [%s]", accessory.context.name, bulb.id);
 
                 var service = accessory.addService(Service.Lightbulb, accessory.context.name);
 
@@ -176,11 +172,11 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                     accessory.addService(Service.LightSensor, accessory.context.name);
                 }
 
-                self.accessories[accessory.UUID] = new LifxAccessory(self.log, accessory, bulb, data);
+                this.accessories[accessory.UUID] = new LifxAccessory(this.log, accessory, bulb, data);
 
-                self.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
-            });
-    });
+                this.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
+            }.bind(this));
+    }.bind(this));
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
@@ -188,7 +184,6 @@ LifxLanPlatform.prototype.configureAccessory = function(accessory) {
 }
 
 LifxLanPlatform.prototype.configurationRequestHandler = function(context, request, callback) {
-    var self = this;
     var respDict = {};
 
     if (request && request.type === "Terminate") {
@@ -196,13 +191,13 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
     }
 
     var sortAccessories = function() {
-        context.sortedAccessories = Object.keys(self.accessories).map(
+        context.sortedAccessories = Object.keys(this.accessories).map(
             function(k){return this[k] instanceof PlatformAccessory ? this[k] : this[k].accessory},
-            self.accessories
+            this.accessories
         ).sort(function(a,b) {if (a.context.name < b.context.name) return -1; if (a.context.name > b.context.name) return 1; return 0});
 
         return Object.keys(context.sortedAccessories).map(function(k) {return this[k].context.name}, context.sortedAccessories);
-    }
+    }.bind(this);
 
     switch(context.onScreen) {
         case "DoRemove":
@@ -230,18 +225,23 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             context.accessory = context.sortedAccessories[request.response.selections[0]];
             context.canAddCharacteristic = [];
             context.canRemoveCharacteristic = [];
+            context.canAddService = [];
+            context.canRemoveService = [];
+            context.onScreenSelection = [];
 
             var service = context.accessory.getService(Service.Lightbulb);
-            var characteristics;
+            var characteristics, services;
 
             if (/(650|Original)/.test(context.accessory.context.model)) {
                 characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
             }
             else if (/Color/.test(context.accessory.context.model)) {
                 characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+                services = [Service.LightSensor];
             }
             else {
                 characteristics = [Characteristic.Brightness, Kelvin];
+                services = [Service.LightSensor];
             }
 
             for (var index in characteristics) {
@@ -255,14 +255,35 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 }
             }
 
+            for (var index in services) {
+                if (context.accessory.getService(services[index]) !== undefined) {
+                    context.canRemoveService.push(services[index]);
+                }
+                else {
+                    context.canAddService.push(services[index]);
+                }
+            }
+
             var items = [];
 
             if (context.canAddCharacteristic.length > 0) {
                 items.push("Add Characteristic");
+                context.onScreenSelection.push({action: 'add', item: 'characteristic', screen: 'AddCharacteristic'});
+            }
+
+            if (context.canAddService.length > 0) {
+                items.push("Add Service");
+                context.onScreenSelection.push({action: 'add', item: 'service', screen: 'AddService'});
             }
 
             if (context.canRemoveCharacteristic.length > 0) {
                 items.push("Remove Characteristic");
+                context.onScreenSelection.push({action: 'remove', item: 'characteristic', screen: 'RemoveCharacteristic'});
+            }
+
+            if (context.canRemoveService.length > 0) {
+                items.push("Remove Service");
+                context.onScreenSelection.push({action: 'remove', item: 'service', screen: 'RemoveService'});
             }
 
             respDict = {
@@ -273,21 +294,31 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 "items": items
             }
 
-            context.onScreen = "ModifyCharacteristic";
+            context.onScreen = "ModifyAccessory";
 
             callback(respDict);
             break;
-        case "ModifyCharacteristic":
-            if (context.canAddCharacteristic.length > 0) {
-                context.onScreen = context.canRemoveCharacteristic.length > 0 && request.response.selections[0] == 1 ? "RemoveCharacteristic" : "AddCharacteristic";
-            }
-            else {
-                context.onScreen = "RemoveCharacteristic";
-            }
+        case "ModifyAccessory":
+            var selection = context.onScreenSelection[request.response.selections[0]];
+
+            context.onScreen = selection.screen;
 
             var items = [];
 
             for (var index in context["can" + context.onScreen]) {
+                if (selection.item === 'service') {
+                    var name;
+
+                    switch(context["can" + context.onScreen][index].UUID) {
+                        case Service.LightSensor.UUID:
+                            name = "LightSensor";
+                            break;
+                    }
+
+                    items.push(name);
+                    continue;
+                }
+
                 var characteristic = new (Function.prototype.bind.apply(context["can" + context.onScreen][index], arguments));
                 items.push(characteristic.displayName);
             }
@@ -295,7 +326,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             respDict = {
                 "type": "Interface",
                 "interface": "list",
-                "title": "Select characteristc to " + (context.onScreen == "RemoveCharacteristic" ? "remove" : "add"),
+                "title": "Select " + selection.item + " to " + selection.action,
                 "allowMultipleSelection": true,
                 "items": items
             }
@@ -303,25 +334,47 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             callback(respDict);
             break;
         case "AddCharacteristic":
+        case "AddService":
         case "RemoveCharacteristic":
+        case "RemoveService":
             if (request.response.selections) {
                 var service = context.accessory.getService(Service.Lightbulb);
 
                 for (var i in request.response.selections.sort()) {
                     var item = context["can" + context.onScreen][i];
-                    var characteristic = service.getCharacteristic(item);
 
-                    if (context.onScreen == "RemoveCharacteristic") {
-                        service.removeCharacteristic(characteristic);
-                    }
-                    else {
-                        if (characteristic == null) {
-                            service.addCharacteristic(item);
-                        }
+                    switch(context.onScreen) {
+                        case "AddCharacteristic":
+                            var characteristic = service.getCharacteristic(item);
 
-                        if (self.accessories[context.accessory.UUID] instanceof LifxAccessory) {
-                            self.accessories[context.accessory.UUID].updateEventHandlers(item);
-                        }
+                            if (characteristic == null) {
+                                service.addCharacteristic(item);
+                            }
+
+                            if (this.accessories[context.accessory.UUID] instanceof LifxAccessory) {
+                                this.accessories[context.accessory.UUID].updateEventHandlers(service, item);
+                            }
+
+                            break;
+                        case "AddService":
+                            if (context.accessory.getService(item) === undefined) {
+                                context.accessory.addService(item, context.accessory.context.name);
+
+                                this.accessories[context.accessory.UUID].updateEventHandlers(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
+                            }
+
+                            break;
+                        case "RemoveCharacteristic":
+                            var characteristic = service.getCharacteristic(item);
+
+                            characteristic.removeAllListeners();
+                            service.removeCharacteristic(characteristic);
+
+                            break;
+                        case "RemoveService":
+                            if (context.accessory.getService(item) !== undefined) {
+                                context.accessory.removeService(context.accessory.getService(item));
+                            }
                     }
                 }
 
@@ -329,7 +382,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     "type": "Interface",
                     "interface": "instruction",
                     "title": "Finished",
-                    "detail": "Accessory characteristic " + (context.onScreen == "RemoveCharacteristic" ? "removal" : "addition") + " was successful."
+                    "detail": "Accessory " + (/Service$/.test(context.onScreen) ? "service" : "characteristic") + " " + (/^Remove/.test(context.onScreen) ? "removal" : "addition") + " was successful."
                 }
 
                 context.onScreen = null;
@@ -386,7 +439,6 @@ LifxLanPlatform.prototype.removeAccessory = function(accessory) {
 }
 
 function LifxAccessory(log, accessory, bulb, data) {
-    var self = this;
     this.accessory = accessory;
     this.power = data.power || 0;
     this.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
@@ -417,9 +469,9 @@ function LifxAccessory(log, accessory, bulb, data) {
     }
 
     this.accessory.on('identify', function(paired, callback) {
-        self.log("%s - identify", self.accessory.context.name);
+        this.log("%s - identify", this.accessory.context.name);
         callback();
-    });
+    }.bind(this));
 
     this.updateReachability(bulb, true);
 }
@@ -445,8 +497,6 @@ LifxAccessory.prototype.get = function (type) {
 }
 
 LifxAccessory.prototype.getAmbientLight = function(callback) {
-    var self = this;
-
     this.bulb.getAmbientLight(function(err, data) {
         var lux;
 
@@ -454,23 +504,45 @@ LifxAccessory.prototype.getAmbientLight = function(callback) {
             lux = parseInt(data * 1000) / 1000;
         }
 
-        self.log("%s - Get ambient light: %d", self.accessory.context.name, lux);
+        this.log("%s - Get ambient light: %d", this.accessory.context.name, lux);
         callback(null, lux);
-    });
+    }.bind(this));
+}
+
+LifxAccessory.prototype.getBrightness = function(callback) {
+    this.getState("brightness", callback);
+}
+
+LifxAccessory.prototype.getHue = function(callback) {
+    this.getState("hue", callback);
+}
+
+LifxAccessory.prototype.getKelvin = function(callback) {
+    this.getState("kelvin", callback);
+}
+
+LifxAccessory.prototype.getPower = function(callback) {
+    this.getState("power", callback);
+}
+
+LifxAccessory.prototype.getSaturation = function(callback) {
+    this.getState("saturation", callback);
 }
 
 LifxAccessory.prototype.getState = function(type, callback){
-    var self = this;
-
     this.bulb.getState(function(err, data) {
         if (data) {
-            self.power = data.power;
-            self.color = data.color;
-            self.accessory.updateReachability(true);
+            this.power = data.power;
+            this.color = data.color;
+            this.accessory.updateReachability(true);
         }
 
-        callback(null, self.get(type));
-    });
+        callback(null, this.get(type));
+    }.bind(this));
+}
+
+LifxAccessory.prototype.setBrightness = function(value, callback) {
+    this.setColor("brightness", value, callback);
 }
 
 LifxAccessory.prototype.setColor = function(type, value, callback){
@@ -484,12 +556,33 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
     });
 }
 
+LifxAccessory.prototype.setHue = function(value, callback) {
+    this.setColor("hue", value, callback);
+}
+
+LifxAccessory.prototype.setKelvin = function(value, callback) {
+    this.setColor("kelvin", value, callback);
+}
+
+LifxAccessory.prototype.setSaturation = function(value, callback) {
+    this.setColor("saturation", value, callback);
+}
+
 LifxAccessory.prototype.setPower = function(state, callback) {
+    if (this.power == state) {
+        callback(null);
+        return;
+    }
+
     this.log("%s - Set power: %d", this.accessory.context.name, state);
 
     this.bulb[state ? "on" : "off"](fadeDuration, function(err) {
+        if (!err) {
+            this.power = state;
+        }
+
         callback(null);
-    });
+    }.bind(this));
 }
 
 LifxAccessory.prototype.setWaveform = function(hue, period, cycles, skewRatio, waveform, callback) {
@@ -520,21 +613,19 @@ LifxAccessory.prototype.setWaveform = function(hue, period, cycles, skewRatio, w
 }
 
 LifxAccessory.prototype.updateInfo = function() {
-    var self = this;
-
     this.bulb.getFirmwareVersion(function(err, data) {
         if (err) {
             return;
         }
 
-        var service = self.accessory.getService(Service.AccessoryInformation);
+        var service = this.accessory.getService(Service.AccessoryInformation);
 
         if (service.testCharacteristic(Characteristic.FirmwareRevision) === false) {
             service.addCharacteristic(Characteristic.FirmwareRevision);
         }
 
         service.setCharacteristic(Characteristic.FirmwareRevision, data.majorVersion + "." + data.minorVersion);
-    });
+    }.bind(this));
 
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
@@ -547,33 +638,38 @@ LifxAccessory.prototype.updateInfo = function() {
             data = {}
         }
 
-        self.accessory.context.make = data.vendorName || "LIFX";
-        self.accessory.context.model = data.productName || "Unknown";
+        this.accessory.context.make = data.vendorName || "LIFX";
+        this.accessory.context.model = data.productName || "Unknown";
 
-        self.accessory.getService(Service.AccessoryInformation)
-            .setCharacteristic(Characteristic.Manufacturer, self.accessory.context.make)
-            .setCharacteristic(Characteristic.Model, self.accessory.context.model)
-            .setCharacteristic(Characteristic.SerialNumber, self.bulb.id);
+        this.accessory.getService(Service.AccessoryInformation)
+            .setCharacteristic(Characteristic.Manufacturer, this.accessory.context.make)
+            .setCharacteristic(Characteristic.Model, this.accessory.context.model)
+            .setCharacteristic(Characteristic.SerialNumber, this.bulb.id);
 
-        if (/(Color|Original)/.test(self.accessory.context.model)) {
-            var service = self.accessory.getService(Service.Lightbulb);
+        if (/(Color|Original)/.test(this.accessory.context.model)) {
+            var service = this.accessory.getService(Service.Lightbulb);
 
             if (service.testCharacteristic(Characteristic.Hue) === false) {
                 service.addCharacteristic(Characteristic.Hue);
-                self.updateEventHandlers(Characteristic.Hue);
+                this.updateEventHandlers(service, Characteristic.Hue);
             }
 
             if (service.testCharacteristic(Characteristic.Saturation) === false) {
                 service.addCharacteristic(Characteristic.Saturation);
-                self.updateEventHandlers(Characteristic.Saturation);
+                this.updateEventHandlers(service, Characteristic.Saturation);
             }
         }
-    });
+    }.bind(this));
 }
 
-LifxAccessory.prototype.updateEventHandlers = function(characteristic) {
-    var self = this;
-    var service = this.accessory.getService(Service.Lightbulb);
+LifxAccessory.prototype.updateEventHandlers = function(service, characteristic) {
+    if (!(service instanceof Service)) {
+        service = this.accessory.getService(service);
+    }
+
+    if (service === undefined) {
+        return;
+    }
 
     if (service.testCharacteristic(characteristic) === false) {
         return;
@@ -590,42 +686,42 @@ LifxAccessory.prototype.updateEventHandlers = function(characteristic) {
             service
                 .getCharacteristic(Characteristic.On)
                 .setValue(this.power > 0)
-                .on('get', function(callback) {self.getState("power", callback)})
-                .on('set', function(value, callback) {self.setPower(value, callback)});
+                .on('get', this.getPower.bind(this))
+                .on('set', this.setPower.bind(this));
             break;
         case Characteristic.Brightness:
             service
                 .getCharacteristic(Characteristic.Brightness)
                 .setValue(this.color.brightness)
                 .setProps({minValue: 1})
-                .on('get', function(callback) {self.getState("brightness", callback)})
-                .on('set', function(value, callback) {self.setColor("brightness", value, callback)});
+                .on('get', this.getBrightness.bind(this))
+                .on('set', this.setBrightness.bind(this));
             break;
         case Characteristic.CurrentAmbientLightLevel:
             service
                 .getCharacteristic(Characteristic.CurrentAmbientLightLevel)
-                .on('get', function(callback) {self.getAmbientLight(callback)});
+                .on('get', this.getAmbientLight.bind(this));
             break;
         case Kelvin:
             service
                 .getCharacteristic(Kelvin)
                 .setValue(this.color.kelvin)
-                .on('get', function(callback) {self.getState("kelvin", callback)})
-                .on('set', function(value, callback) {self.setColor("kelvin", value, callback)});
+                .on('get', this.getKelvin.bind(this))
+                .on('set', this.setKelvin.bind(this));
             break;
         case Characteristic.Hue:
             service
                 .getCharacteristic(Characteristic.Hue)
                 .setValue(this.color.hue)
-                .on('get', function(callback) {self.getState("hue", callback)})
-                .on('set', function(value, callback) {self.setColor("hue", value, callback)});
+                .on('get', this.getHue.bind(this))
+                .on('set', this.setHue.bind(this));
             break;
         case Characteristic.Saturation:
             service
                 .getCharacteristic(Characteristic.Saturation)
                 .setValue(this.color.saturation)
-                .on('get', function(callback) {self.getState("saturation", callback)})
-                .on('set', function(value, callback) {self.setColor("saturation", value, callback)});
+                .on('get', this.getSaturation.bind(this))
+                .on('set', this.setSaturation.bind(this));
             break;
     }
 }
@@ -634,14 +730,14 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
     this.accessory.updateReachability(reachable);
     this.bulb = bulb;
 
-    this.updateEventHandlers(Characteristic.On);
-    this.updateEventHandlers(Characteristic.Brightness);
-    this.updateEventHandlers(Characteristic.CurrentAmbientLightLevel, Service.LightSensor);
-    this.updateEventHandlers(Kelvin);
+    this.updateEventHandlers(Service.Lightbulb, Characteristic.On);
+    this.updateEventHandlers(Service.Lightbulb,Characteristic.Brightness);
+    this.updateEventHandlers(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
+    this.updateEventHandlers(Service.Lightbulb, Kelvin);
 
     if (/(Color|Original)/.test(this.accessory.context.model)) {
-        this.updateEventHandlers(Characteristic.Hue);
-        this.updateEventHandlers(Characteristic.Saturation);
+        this.updateEventHandlers(Service.Lightbulb, Characteristic.Hue);
+        this.updateEventHandlers(Service.Lightbulb, Characteristic.Saturation);
     }
 
     if (reachable === true) {
