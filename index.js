@@ -173,7 +173,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 }
 
                 if (/(650|Original)/.test(accessory.context.model) === false) {
-                    service.addCharacteristic(Characteristic.CurrentAmbientLightLevel);
+                    accessory.addService(Service.LightSensor, accessory.context.name);
                 }
 
                 self.accessories[accessory.UUID] = new LifxAccessory(self.log, accessory, bulb, data);
@@ -238,10 +238,10 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
             }
             else if (/Color/.test(context.accessory.context.model)) {
-                characteristics = [Characteristic.Brightness, Characteristic.CurrentAmbientLightLevel, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+                characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
             }
             else {
-                characteristics = [Characteristic.Brightness, Characteristic.CurrentAmbientLightLevel, Kelvin];
+                characteristics = [Characteristic.Brightness, Kelvin];
             }
 
             for (var index in characteristics) {
@@ -631,7 +631,7 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
 
     this.updateEventHandlers(Characteristic.On);
     this.updateEventHandlers(Characteristic.Brightness);
-    this.updateEventHandlers(Characteristic.CurrentAmbientLightLevel);
+    this.updateEventHandlers(Characteristic.CurrentAmbientLightLevel, Service.LightSensor);
     this.updateEventHandlers(Kelvin);
 
     if (/(Color|Original)/.test(this.accessory.context.model)) {
