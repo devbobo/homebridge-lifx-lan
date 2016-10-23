@@ -180,6 +180,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
+    accessory.updateReachability(false);
     this.accessories[accessory.UUID] = accessory;
 }
 
@@ -352,7 +353,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                             }
 
                             if (this.accessories[context.accessory.UUID] instanceof LifxAccessory) {
-                                this.accessories[context.accessory.UUID].updateEventHandlers(service, item);
+                                this.accessories[context.accessory.UUID].addEventHandler(service, item);
                             }
 
                             break;
@@ -360,7 +361,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                             if (context.accessory.getService(item) === undefined) {
                                 context.accessory.addService(item, context.accessory.context.name);
 
-                                this.accessories[context.accessory.UUID].updateEventHandlers(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
+                                this.accessories[context.accessory.UUID].addEventHandler(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
                             }
 
                             break;
@@ -473,7 +474,72 @@ function LifxAccessory(log, accessory, bulb, data) {
         callback();
     }.bind(this));
 
+    this.addEventHandlers();
     this.updateReachability(bulb, true);
+}
+
+LifxAccessory.prototype.addEventHandler = function(service, characteristic) {
+    if (!(service instanceof Service)) {
+        service = this.accessory.getService(service);
+    }
+
+    if (service === undefined) {
+        return;
+    }
+
+    if (service.testCharacteristic(characteristic) === false) {
+        return;
+    }
+
+    switch(characteristic) {
+        case Characteristic.On:
+            service
+                .getCharacteristic(Characteristic.On)
+                .setValue(this.power > 0)
+                .on('get', this.getPower.bind(this))
+                .on('set', this.setPower.bind(this));
+            break;
+        case Characteristic.Brightness:
+            service
+                .getCharacteristic(Characteristic.Brightness)
+                .setValue(this.color.brightness)
+                .setProps({minValue: 1})
+                .on('set', this.setBrightness.bind(this));
+            break;
+        case Characteristic.CurrentAmbientLightLevel:
+            service
+                .getCharacteristic(Characteristic.CurrentAmbientLightLevel)
+                .on('get', this.getAmbientLight.bind(this));
+            break;
+        case Kelvin:
+            service
+                .getCharacteristic(Kelvin)
+                .setValue(this.color.kelvin)
+                .on('set', this.setKelvin.bind(this));
+            break;
+        case Characteristic.Hue:
+            service
+                .getCharacteristic(Characteristic.Hue)
+                .setValue(this.color.hue)
+                .on('set', this.setHue.bind(this));
+            break;
+        case Characteristic.Saturation:
+            service
+                .getCharacteristic(Characteristic.Saturation)
+                .setValue(this.color.saturation)
+                .on('set', this.setSaturation.bind(this));
+            break;
+    }
+}
+
+LifxAccessory.prototype.addEventHandlers = function() {
+    this.addEventHandler(Service.Lightbulb, Characteristic.On);
+    this.addEventHandler(Service.Lightbulb,Characteristic.Brightness);
+    this.addEventHandler(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
+    this.addEventHandler(Service.Lightbulb, Kelvin);
+
+    this.addEventHandler(Service.Lightbulb, Characteristic.Hue);
+    this.addEventHandler(Service.Lightbulb, Characteristic.Saturation);
 }
 
 LifxAccessory.prototype.get = function (type) {
@@ -509,24 +575,8 @@ LifxAccessory.prototype.getAmbientLight = function(callback) {
     }.bind(this));
 }
 
-LifxAccessory.prototype.getBrightness = function(callback) {
-    this.getState("brightness", callback);
-}
-
-LifxAccessory.prototype.getHue = function(callback) {
-    this.getState("hue", callback);
-}
-
-LifxAccessory.prototype.getKelvin = function(callback) {
-    this.getState("kelvin", callback);
-}
-
 LifxAccessory.prototype.getPower = function(callback) {
     this.getState("power", callback);
-}
-
-LifxAccessory.prototype.getSaturation = function(callback) {
-    this.getState("saturation", callback);
 }
 
 LifxAccessory.prototype.getState = function(type, callback){
@@ -535,6 +585,19 @@ LifxAccessory.prototype.getState = function(type, callback){
             this.power = data.power;
             this.color = data.color;
             this.accessory.updateReachability(true);
+
+            var service = this.accessory.getService(Service.Lightbulb);
+
+            service.getCharacteristic(Characteristic.Brightness).updateValue(this.color.brightness);
+            service.getCharacteristic(Kelvin).updateValue(this.color.kelvin);
+
+            if (service.testCharacteristic(Characteristic.Hue)) {
+                service.getCharacteristic(Characteristic.Hue).updateValue(this.color.hue);
+            }
+
+            if (service.testCharacteristic(Characteristic.Saturation)) {
+                service.getCharacteristic(Characteristic.Saturation).updateValue(this.color.saturation);
+            }
         }
 
         callback(null, this.get(type));
@@ -542,6 +605,11 @@ LifxAccessory.prototype.getState = function(type, callback){
 }
 
 LifxAccessory.prototype.setBrightness = function(value, callback) {
+    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(Characteristic.Brightness).value) {
+        callback(null);
+        return;
+    }
+
     this.setColor("brightness", value, callback);
 }
 
@@ -557,14 +625,29 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
 }
 
 LifxAccessory.prototype.setHue = function(value, callback) {
+    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(Characteristic.Hue).value) {
+        callback(null);
+        return;
+    }
+
     this.setColor("hue", value, callback);
 }
 
 LifxAccessory.prototype.setKelvin = function(value, callback) {
+    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(Kelvin).value) {
+        callback(null);
+        return;
+    }
+
     this.setColor("kelvin", value, callback);
 }
 
 LifxAccessory.prototype.setSaturation = function(value, callback) {
+    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(Characteristic.Saturation).value) {
+        callback(null);
+        return;
+    }
+
     this.setColor("saturation", value, callback);
 }
 
@@ -651,94 +734,20 @@ LifxAccessory.prototype.updateInfo = function() {
 
             if (service.testCharacteristic(Characteristic.Hue) === false) {
                 service.addCharacteristic(Characteristic.Hue);
-                this.updateEventHandlers(service, Characteristic.Hue);
+                this.addEventHandler(service, Characteristic.Hue);
             }
 
             if (service.testCharacteristic(Characteristic.Saturation) === false) {
                 service.addCharacteristic(Characteristic.Saturation);
-                this.updateEventHandlers(service, Characteristic.Saturation);
+                this.addEventHandler(service, Characteristic.Saturation);
             }
         }
     }.bind(this));
 }
 
-LifxAccessory.prototype.updateEventHandlers = function(service, characteristic) {
-    if (!(service instanceof Service)) {
-        service = this.accessory.getService(service);
-    }
-
-    if (service === undefined) {
-        return;
-    }
-
-    if (service.testCharacteristic(characteristic) === false) {
-        return;
-    }
-
-    service.getCharacteristic(characteristic).removeAllListeners();
-
-    if (this.accessory.reachable !== true) {
-        return;
-    }
-
-    switch(characteristic) {
-        case Characteristic.On:
-            service
-                .getCharacteristic(Characteristic.On)
-                .setValue(this.power > 0)
-                .on('get', this.getPower.bind(this))
-                .on('set', this.setPower.bind(this));
-            break;
-        case Characteristic.Brightness:
-            service
-                .getCharacteristic(Characteristic.Brightness)
-                .setValue(this.color.brightness)
-                .setProps({minValue: 1})
-                .on('get', this.getBrightness.bind(this))
-                .on('set', this.setBrightness.bind(this));
-            break;
-        case Characteristic.CurrentAmbientLightLevel:
-            service
-                .getCharacteristic(Characteristic.CurrentAmbientLightLevel)
-                .on('get', this.getAmbientLight.bind(this));
-            break;
-        case Kelvin:
-            service
-                .getCharacteristic(Kelvin)
-                .setValue(this.color.kelvin)
-                .on('get', this.getKelvin.bind(this))
-                .on('set', this.setKelvin.bind(this));
-            break;
-        case Characteristic.Hue:
-            service
-                .getCharacteristic(Characteristic.Hue)
-                .setValue(this.color.hue)
-                .on('get', this.getHue.bind(this))
-                .on('set', this.setHue.bind(this));
-            break;
-        case Characteristic.Saturation:
-            service
-                .getCharacteristic(Characteristic.Saturation)
-                .setValue(this.color.saturation)
-                .on('get', this.getSaturation.bind(this))
-                .on('set', this.setSaturation.bind(this));
-            break;
-    }
-}
-
 LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
     this.accessory.updateReachability(reachable);
     this.bulb = bulb;
-
-    this.updateEventHandlers(Service.Lightbulb, Characteristic.On);
-    this.updateEventHandlers(Service.Lightbulb,Characteristic.Brightness);
-    this.updateEventHandlers(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
-    this.updateEventHandlers(Service.Lightbulb, Kelvin);
-
-    if (/(Color|Original)/.test(this.accessory.context.model)) {
-        this.updateEventHandlers(Service.Lightbulb, Characteristic.Hue);
-        this.updateEventHandlers(Service.Lightbulb, Characteristic.Saturation);
-    }
 
     if (reachable === true) {
         this.updateInfo();
