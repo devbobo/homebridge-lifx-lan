@@ -342,7 +342,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 var service = context.accessory.getService(Service.Lightbulb);
 
                 for (var i in request.response.selections.sort()) {
-                    var item = context["can" + context.onScreen][i];
+                    var item = context["can" + context.onScreen][request.response.selections[i]];
 
                     switch(context.onScreen) {
                         case "AddCharacteristic":
@@ -588,8 +588,13 @@ LifxAccessory.prototype.getState = function(type, callback){
 
             var service = this.accessory.getService(Service.Lightbulb);
 
-            service.getCharacteristic(Characteristic.Brightness).updateValue(this.color.brightness);
-            service.getCharacteristic(Kelvin).updateValue(this.color.kelvin);
+            if (service.testCharacteristic(Characteristic.Brightness)) {
+                service.getCharacteristic(Characteristic.Brightness).updateValue(this.color.brightness);
+            }
+
+            if (service.testCharacteristic(Characteristic.Kelvin)) {
+                service.getCharacteristic(Kelvin).updateValue(this.color.kelvin);
+            }
 
             if (service.testCharacteristic(Characteristic.Hue)) {
                 service.getCharacteristic(Characteristic.Hue).updateValue(this.color.hue);
