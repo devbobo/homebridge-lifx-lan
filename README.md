@@ -1,5 +1,6 @@
 # homebridge-lifx-lan
 [![NPM Version](https://img.shields.io/npm/v/homebridge-lifx-lan.svg)](https://www.npmjs.com/package/homebridge-lifx-lan)
+[![Dependency Status](https://img.shields.io/versioneye/d/nodejs/homebridge-lifx-lan.svg)](https://www.versioneye.com/nodejs/homebridge-lifx-lan/)
 
 LiFx LAN platform plugin for [Homebridge](https://github.com/nfarina/homebridge).
 
