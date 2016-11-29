@@ -15,7 +15,8 @@
 //         "messageHandlerTimeout": 45000,   // optional: in ms, if not answer in time an error is provided to get methods
 //         "resendPacketDelay": 150,         // optional: delay between packages if light did not receive a packet (for setting methods with callback)
 //         "resendMaxTimes": 3,              // optional: resend packages x times if light did not receive a packet (for setting methods with callback)
-//         "debug": false                    // optional: logs all messages in console if turned on
+//         "debug": false,                    // optional: logs all messages in console if turned on
+//         "address": '0.0.0.0'              // optional: specify which ipv4 address to bind to
 //     }
 // ],
 //
@@ -125,7 +126,8 @@ class LifxLanPlatform {
                 lightOfflineTolerance:  this.config.lightOfflineTolerance || 5,
                 messageHandlerTimeout:  this.config.messageHandlerTimeout || 45000,
                 resendMaxTimes:         this.config.resendMaxTimes || 4,
-                resendPacketDelay:      this.config.resendPacketDelay || 150
+                resendPacketDelay:      this.config.resendPacketDelay || 150,
+                address:                this.config.address || '0.0.0.0'
             });
         }.bind(this));
     }
