@@ -26,6 +26,6 @@
         "smart bulb"
     ],
     "dependencies": {
-        "node-lifx": ">=0.6.0"
+        "node-lifx": ">=0.7.0"
     }
 }

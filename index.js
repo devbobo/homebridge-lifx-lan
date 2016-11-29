@@ -162,7 +162,7 @@ class LifxLanPlatform {
                     service.addCharacteristic(Characteristic.Brightness);
                     service.addCharacteristic(Kelvin);
 
-                    if (/(LIFX [+Z]|Color|Original)/.test(accessory.context.model)) {
+                    if (/(LIFX|Color|Original)/.test(accessory.context.model)) {
                         service.addCharacteristic(Characteristic.Hue);
                         service.addCharacteristic(Characteristic.Saturation);
                     }
@@ -235,7 +235,7 @@ class LifxLanPlatform {
                 if (/(650|Original)/.test(context.accessory.context.model)) {
                     characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
                 }
-                else if (/LIFX [+Z]|Color/.test(context.accessory.context.model)) {
+                else if (/LIFX|Color/.test(context.accessory.context.model)) {
                     characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
                     services = [Service.LightSensor];
                 }
