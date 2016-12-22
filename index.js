@@ -448,6 +448,8 @@ function LifxAccessory(log, accessory, bulb, data) {
         return;
     }
 
+    this.lastCalled = null;
+
     if (this.accessory.context.name === undefined) {
         this.accessory.context.name = this.accessory.displayName;
     }
@@ -577,7 +579,13 @@ LifxAccessory.prototype.getPower = function(callback) {
     this.getState("power", callback);
 }
 
-LifxAccessory.prototype.getState = function(type, callback){
+LifxAccessory.prototype.getState = function(type, callback) {
+    if (this.lastCalled && (Date.now() - this.lastCalled) < 5000) {
+        callback(null, this.get(type));
+        return;
+    }
+
+    this.lastCalled = Date.now();
     this.bulb.getState(function(err, data) {
         if (data) {
             this.power = data.power;
