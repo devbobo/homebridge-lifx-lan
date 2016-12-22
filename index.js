@@ -170,10 +170,6 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                     service.addCharacteristic(Characteristic.Saturation);
                 }
 
-                if (/(650|Original)/.test(accessory.context.model) === false) {
-                    accessory.addService(Service.LightSensor, accessory.context.name);
-                }
-
                 this.accessories[accessory.UUID] = new LifxAccessory(this.log, accessory, bulb, data);
 
                 this.api.registerPlatformAccessories("homebridge-lifx-lan", "LifxLan", [accessory]);
