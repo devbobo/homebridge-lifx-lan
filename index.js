@@ -586,6 +586,7 @@ LifxAccessory.prototype.getState = function(type, callback) {
     }
 
     this.lastCalled = Date.now();
+
     this.bulb.getState(function(err, data) {
         if (data) {
             this.power = data.power;
