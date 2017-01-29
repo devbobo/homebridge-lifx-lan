@@ -152,6 +152,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 accessory.context.name = state.label || name;
                 accessory.context.make = data.vendorName || "LIFX";
                 accessory.context.model = data.productName || "Unknown";
+                accessory.context.features = data.productFeatures || { color: false, infrared: false, multizone: false };
 
                 accessory.getService(Service.AccessoryInformation)
                     .setCharacteristic(Characteristic.Manufacturer, accessory.context.make)
@@ -165,7 +166,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 service.addCharacteristic(Characteristic.Brightness);
                 service.addCharacteristic(Kelvin);
 
-                if (/(LIFX|Color|Original)/.test(accessory.context.model)) {
+                if (accessory.context.features.color === true) {
                     service.addCharacteristic(Characteristic.Hue);
                     service.addCharacteristic(Characteristic.Saturation);
                 }
@@ -724,7 +725,7 @@ LifxAccessory.prototype.updateInfo = function() {
 
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
-    if (model !== "Unknown" && model !== "Default-Model") {
+    if (model !== "Unknown" && model !== "Default-Model" && this.accessory.context.features !== undefined) {
         return;
     }
 
@@ -735,13 +736,14 @@ LifxAccessory.prototype.updateInfo = function() {
 
         this.accessory.context.make = data.vendorName || "LIFX";
         this.accessory.context.model = data.productName || "Unknown";
+        this.accessory.context.features = data.productFeatures || { color: false, infrared: false, multizone: false };
 
         this.accessory.getService(Service.AccessoryInformation)
             .setCharacteristic(Characteristic.Manufacturer, this.accessory.context.make)
             .setCharacteristic(Characteristic.Model, this.accessory.context.model)
             .setCharacteristic(Characteristic.SerialNumber, this.bulb.id);
 
-        if (/(Color|Original)/.test(this.accessory.context.model)) {
+        if (this.accessory.context.features.color === true) {
             var service = this.accessory.getService(Service.Lightbulb);
 
             if (service.testCharacteristic(Characteristic.Hue) === false) {
