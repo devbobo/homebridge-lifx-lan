@@ -621,14 +621,14 @@ LifxAccessory.prototype.getState = function(type, callback) {
             }
         }
 
-        this.closeCallbacks(this.get(type));
+        this.closeCallbacks(null, this.get(type));
     }.bind(this));
 }
 
-LifxAccessory.prototype.closeCallbacks = function(value){
+LifxAccessory.prototype.closeCallbacks = function(err, value){
     value = value || 0;
     while (this.callbackStack.length > 0)
-        this.callbackStack.pop()(null, value);  
+        this.callbackStack.pop()(err, value);  
 }
 
 LifxAccessory.prototype.setBrightness = function(value, callback) {
@@ -779,7 +779,7 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
     this.bulb = bulb;
     
     if (!reachable)
-        this.closeCallbacks();
+        this.closeCallbacks('LIFX light went offline.');
 
     if (reachable === true) {
         this.updateInfo();
