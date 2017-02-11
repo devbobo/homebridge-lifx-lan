@@ -739,10 +739,6 @@ LifxAccessory.prototype.updateInfo = function() {
 
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
-    if (model !== "Unknown" && model !== "Default-Model" && this.accessory.context.features !== undefined) {
-        return;
-    }
-
     this.bulb.getHardwareVersion(function(err, data) {
         if (err) {
             data = {}
