@@ -443,6 +443,7 @@ function LifxAccessory(log, accessory, bulb, data) {
     this.power = data.power || 0;
     this.color = data.color || {hue: 0, saturation: 0, brightness: 50, kelvin: 2500};
     this.log = log;
+    this.callbackStack = [];
 
     if (!this.accessory instanceof PlatformAccessory) {
         this.log("ERROR \n", this);
@@ -581,12 +582,19 @@ LifxAccessory.prototype.getPower = function(callback) {
 }
 
 LifxAccessory.prototype.getState = function(type, callback) {
+    if (!this.accessory.reachable){
+        callback('Bulb not reachable');
+        return;
+    }
+
     if (this.lastCalled && (Date.now() - this.lastCalled) < 5000) {
         callback(null, this.get(type));
         return;
     }
 
     this.lastCalled = Date.now();
+
+    this.callbackStack.push(callback);
 
     this.bulb.getState(function(err, data) {
         if (data) {
@@ -613,8 +621,14 @@ LifxAccessory.prototype.getState = function(type, callback) {
             }
         }
 
-        callback(null, this.get(type));
+        this.closeCallbacks(null, this.get(type));
     }.bind(this));
+}
+
+LifxAccessory.prototype.closeCallbacks = function(err, value){
+    value = value || 0;
+    while (this.callbackStack.length > 0)
+        this.callbackStack.pop()(err, value);  
 }
 
 LifxAccessory.prototype.setBrightness = function(value, callback) {
@@ -760,8 +774,12 @@ LifxAccessory.prototype.updateInfo = function() {
 }
 
 LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
+
     this.accessory.updateReachability(reachable);
     this.bulb = bulb;
+    
+    if (!reachable)
+        this.closeCallbacks('LIFX light went offline.');
 
     if (reachable === true) {
         this.updateInfo();
