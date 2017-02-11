@@ -552,7 +552,6 @@ LifxAccessory.prototype.closeCallbacks = function(err, value) {
     }
 }
 
-
 LifxAccessory.prototype.get = function (type) {
     var state;
 

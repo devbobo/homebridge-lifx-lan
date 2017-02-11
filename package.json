@@ -1,6 +1,6 @@
 {
     "name": "homebridge-lifx-lan",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "LiFx LAN platform plugin for Homebridge",
     "homepage": "https://github.com/devbobo/homebridge-lifx-lan#readme",
     "repository": {
@@ -18,7 +18,7 @@
     },
     "engines": {
         "node": ">=6.0.0",
-        "homebridge": ">=0.3.0"
+        "homebridge": ">=0.4.0"
     },
     "keywords": [
         "homebridge-plugin",
