@@ -544,6 +544,15 @@ LifxAccessory.prototype.addEventHandlers = function() {
     this.addEventHandler(Service.Lightbulb, Characteristic.Saturation);
 }
 
+LifxAccessory.prototype.closeCallbacks = function(err, value) {
+    value = value || 0;
+
+    while (this.callbackStack.length > 0) {
+        this.callbackStack.pop()(err, value);
+    }
+}
+
+
 LifxAccessory.prototype.get = function (type) {
     var state;
 
@@ -582,7 +591,7 @@ LifxAccessory.prototype.getPower = function(callback) {
 }
 
 LifxAccessory.prototype.getState = function(type, callback) {
-    if (!this.accessory.reachable){
+    if (!this.accessory.reachable) {
         callback('Bulb not reachable');
         return;
     }
@@ -623,12 +632,6 @@ LifxAccessory.prototype.getState = function(type, callback) {
 
         this.closeCallbacks(null, this.get(type));
     }.bind(this));
-}
-
-LifxAccessory.prototype.closeCallbacks = function(err, value){
-    value = value || 0;
-    while (this.callbackStack.length > 0)
-        this.callbackStack.pop()(err, value);  
 }
 
 LifxAccessory.prototype.setBrightness = function(value, callback) {
@@ -739,6 +742,10 @@ LifxAccessory.prototype.updateInfo = function() {
 
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
+    if (model !== "Unknown" && model !== "Default-Model" && this.accessory.context.features !== undefined) {
+        return;
+    }
+
     this.bulb.getHardwareVersion(function(err, data) {
         if (err) {
             data = {}
@@ -773,9 +780,10 @@ LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
 
     this.accessory.updateReachability(reachable);
     this.bulb = bulb;
-    
-    if (!reachable)
+
+    if (!reachable) {
         this.closeCallbacks('LIFX light went offline.');
+    }
 
     if (reachable === true) {
         this.updateInfo();
