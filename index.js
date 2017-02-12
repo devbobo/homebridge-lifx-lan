@@ -68,6 +68,12 @@ function LifxLanPlatform(log, config, api) {
 
     fadeDuration = this.config.duration || 1000;
 
+    if (this.config.ignoredDevices && this.config.ignoredDevices.constructor !== Array) {
+        delete this.config.ignoredDevices;
+    }
+
+    this.ignoredDevices = this.config.ignoredDevices || [];
+
     this.api = api;
     this.accessories = {};
     this.log = log;
@@ -103,7 +109,14 @@ function LifxLanPlatform(log, config, api) {
         var uuid = UUIDGen.generate(bulb.id);
         var accessory = this.accessories[uuid];
 
-        if (accessory === undefined) {
+        if (this.ignoredDevices.indexOf(bulb.id) !== -1) {
+            if (accessory !== undefined) {
+                this.removeAccessory(accessory);
+            }
+
+            return;
+        }
+        else if (accessory === undefined) {
             this.addAccessory(bulb);
         }
         else {
@@ -394,19 +407,113 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             }
             break;
         case "Menu":
-            context.onScreen = request && request.response && request.response.selections[0] == 1 ? "Remove" : "Modify";
+            switch(request.response.selections[0]) {
+                case 0:
+                    context.onScreen = "Modify";
+                    break;
+                case 1:
+                    context.onScreen = "Remove";
+                    break;
+                case 2:
+                    context.onScreen = "IgnoreList";
+                    break;
+            }
         case "Modify":
         case "Remove":
-            respDict = {
-                "type": "Interface",
-                "interface": "list",
-                "title": "Select accessory to " + context.onScreen.toLowerCase(),
-                "allowMultipleSelection": context.onScreen == "Remove",
-                "items": sortAccessories()
+            if (context.onScreen != "IgnoreList") {
+                respDict = {
+                    "type": "Interface",
+                    "interface": "list",
+                    "title": "Select accessory to " + context.onScreen.toLowerCase(),
+                    "allowMultipleSelection": context.onScreen == "Remove",
+                    "items": sortAccessories()
+                }
+
+                context.onScreen = "Do" + context.onScreen;
+            }
+            else {
+                respDict = {
+                    "type": "Interface",
+                    "interface": "list",
+                    "title": "Modify Ignore List",
+                    "allowMultipleSelection": false,
+                    "items": this.ignoredDevices.length > 0 ? ["Add Accessory", "Remove Accessory"] : ["Add Accessory"]
+                }
             }
 
-            context.onScreen = "Do" + context.onScreen;
             callback(respDict);
+            break;
+        case "IgnoreList":
+            context.onScreen = request && request.response && request.response.selections[0] == 1 ? "IgnoreListRemove" : "IgnoreListAdd";
+
+            if (context.onScreen == "IgnoreListAdd") {
+                respDict = {
+                    "type": "Interface",
+                    "interface": "list",
+                    "title": "Select accessory to add to Ignore List",
+                    "allowMultipleSelection": true,
+                    "items": sortAccessories()
+                }
+            }
+            else {
+                context.selection = JSON.parse(JSON.stringify(this.ignoredDevices));
+
+                respDict = {
+                    "type": "Interface",
+                    "interface": "list",
+                    "title": "Select accessory to remove from Ignore List",
+                    "allowMultipleSelection": true,
+                    "items": context.selection
+                }
+            }
+
+            callback(respDict);
+            break;
+        case "IgnoreListAdd":
+            if (request.response.selections) {
+                for (var i in request.response.selections.sort()) {
+                    var accessory = context.sortedAccessories[request.response.selections[i]];
+
+                    if (accessory.context && accessory.context.id && this.ignoredDevices.indexOf(accessory.context.id) == -1) {
+                        this.ignoredDevices.push(accessory.context.id);
+                    }
+
+                    this.removeAccessory(accessory);
+                }
+
+                this.config.ignoredDevices = this.ignoredDevices;
+
+                respDict = {
+                    "type": "Interface",
+                    "interface": "instruction",
+                    "title": "Finished",
+                    "detail": "Ignore List update was successful."
+                }
+            }
+
+            context.onScreen = null;
+            callback(respDict, "platform", true, this.config);
+            break;
+
+        case "IgnoreListRemove":
+            if (request.response.selections) {
+                for (var i in request.response.selections) {
+                    var id = context.selection[request.response.selections[i]];
+
+                    if (this.ignoredDevices.indexOf(id) != -1) {
+                        this.ignoredDevices.splice(this.ignoredDevices.indexOf(id), 1);
+                    }
+                }
+            }
+
+            this.config.ignoredDevices = this.ignoredDevices;
+
+            if (this.config.ignoredDevices.length === 0) {
+                delete this.config.ignoredDevices;
+            }
+
+            context.onScreen = null;
+            callback(respDict, "platform", true, this.config);
             break;
         default:
             if (request && (request.response || request.type === "Terminate")) {
@@ -419,7 +526,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     "interface": "list",
                     "title": "Select option",
                     "allowMultipleSelection": false,
-                    "items": ["Modify Accessory", "Remove Accessory"]
+                    "items": ["Modify Accessory", "Remove Accessory", "Modify Ignore List"]
                 }
 
                 context.onScreen = "Menu";
@@ -451,6 +558,10 @@ function LifxAccessory(log, accessory, bulb, data) {
     }
 
     this.lastCalled = null;
+
+    if (this.accessory.context.id === undefined) {
+        this.accessory.context.id = bulb.id;
+    }
 
     if (this.accessory.context.name === undefined) {
         this.accessory.context.name = this.accessory.displayName;
