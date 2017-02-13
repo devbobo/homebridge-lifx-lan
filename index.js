@@ -415,12 +415,13 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     context.onScreen = "Remove";
                     break;
                 case 2:
-                    context.onScreen = "IgnoreList";
+                    //context.onScreen = "IgnoreList";
+                    context.onScreen = "Configuration";
                     break;
             }
         case "Modify":
         case "Remove":
-            if (context.onScreen != "IgnoreList") {
+            if (context.onScreen != "Configuration") {
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
@@ -435,10 +436,31 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
+                    "title": "Select Option",
+                    "allowMultipleSelection": false,
+                    "items": ["Ignored Devices"]
+                }
+
+                /*
+                respDict = {
+                    "type": "Interface",
+                    "interface": "list",
                     "title": "Modify Ignore List",
                     "allowMultipleSelection": false,
                     "items": this.ignoredDevices.length > 0 ? ["Add Accessory", "Remove Accessory"] : ["Add Accessory"]
                 }
+                */
+            }
+
+            callback(respDict);
+            break;
+        case "Configuration":
+            respDict = {
+                "type": "Interface",
+                "interface": "list",
+                "title": "Modify Ignored Devices",
+                "allowMultipleSelection": false,
+                "items": this.ignoredDevices.length > 0 ? ["Add Accessory", "Remove Accessory"] : ["Add Accessory"]
             }
 
             callback(respDict);
@@ -450,7 +472,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
-                    "title": "Select accessory to add to Ignore List",
+                    "title": "Select accessory to add to Ignored Devices",
                     "allowMultipleSelection": true,
                     "items": sortAccessories()
                 }
@@ -461,7 +483,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 respDict = {
                     "type": "Interface",
                     "interface": "list",
-                    "title": "Select accessory to remove from Ignore List",
+                    "title": "Select accessory to remove from Ignored Devices",
                     "allowMultipleSelection": true,
                     "items": context.selection
                 }
@@ -526,7 +548,7 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     "interface": "list",
                     "title": "Select option",
                     "allowMultipleSelection": false,
-                    "items": ["Modify Accessory", "Remove Accessory", "Modify Ignore List"]
+                    "items": ["Modify Accessory", "Remove Accessory", "Configuration"]
                 }
 
                 context.onScreen = "Menu";
