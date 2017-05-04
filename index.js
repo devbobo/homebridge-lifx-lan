@@ -64,7 +64,13 @@ module.exports = function(homebridge) {
 };
 
 function LifxLanPlatform(log, config, api) {
-    this.config = config || {};
+    if (!config) {
+        log.warn("Ignoring LIFX Platform setup because it is not configured");
+        this.disabled = true;
+        return;
+    }
+
+    this.config = config;
 
     fadeDuration = this.config.duration || 1000;
 
@@ -137,10 +143,10 @@ function LifxLanPlatform(log, config, api) {
         Client.init({
             debug:                  this.config.debug || false,
             broadcast:              this.config.broadcast || '255.255.255.255',
-            lightOfflineTolerance:  this.config.lightOfflineTolerance || 5,
-            messageHandlerTimeout:  this.config.messageHandlerTimeout || 45000,
-            resendMaxTimes:         this.config.resendMaxTimes || 4,
-            resendPacketDelay:      this.config.resendPacketDelay || 150,
+            lightOfflineTolerance:  this.config.lightOfflineTolerance || 2,
+            messageHandlerTimeout:  this.config.messageHandlerTimeout || 2500,
+            resendMaxTimes:         this.config.resendMaxTimes || 3,
+            resendPacketDelay:      this.config.resendPacketDelay || 500,
             address:                this.config.address || '0.0.0.0'
         });
     }.bind(this));
@@ -601,7 +607,6 @@ function LifxAccessory(log, accessory, bulb, data) {
 
     if (service.testCharacteristic(Characteristic.CurrentAmbientLightLevel)) {
         service.removeCharacteristic(service.getCharacteristic(Characteristic.CurrentAmbientLightLevel));
-        accessory.addService(Service.LightSensor, accessory.context.name);
     }
 
     this.accessory.on('identify', function(paired, callback) {
@@ -814,11 +819,6 @@ LifxAccessory.prototype.setSaturation = function(value, callback) {
 }
 
 LifxAccessory.prototype.setPower = function(state, callback) {
-    if (this.power == state) {
-        callback(null);
-        return;
-    }
-
     this.log("%s - Set power: %d", this.accessory.context.name, state);
 
     this.bulb[state ? "on" : "off"](fadeDuration, function(err) {
