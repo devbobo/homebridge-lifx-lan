@@ -1,4 +1,7 @@
 # homebridge-lifx-lan
+
+[![npm package](https://nodei.co/npm/homebridge-lifx-lan.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/homebridge-lifx-lan/)
+
 [![NPM Version](https://img.shields.io/npm/v/homebridge-lifx-lan.svg)](https://www.npmjs.com/package/homebridge-lifx-lan)
 [![Dependency Status](https://img.shields.io/versioneye/d/nodejs/homebridge-lifx-lan.svg)](https://www.versioneye.com/nodejs/homebridge-lifx-lan/)
 [![Slack Channel](https://img.shields.io/badge/slack-homebridge--lifx-e01563.svg)](https://homebridgeteam.slack.com/messages/C1NE2GM0S/)
