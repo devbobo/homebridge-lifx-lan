@@ -201,7 +201,7 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
                 var service = accessory.addService(Service.Lightbulb, accessory.context.name);
 
                 service.addCharacteristic(Characteristic.Brightness);
-                service.addCharacteristic(Kelvin);
+                service.addCharacteristic(ColorTemperature);
 
                 if (accessory.context.features.color === true) {
                     service.addCharacteristic(Characteristic.Hue);
@@ -270,14 +270,14 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             var characteristics, services;
 
             if (/(650|Original)/.test(context.accessory.context.model)) {
-                characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+                characteristics = [Characteristic.Brightness, Characteristic.Hue, ColorTemperature, Characteristic.Saturation];
             }
             else if (/LIFX|Color/.test(context.accessory.context.model)) {
-                characteristics = [Characteristic.Brightness, Characteristic.Hue, Kelvin, Characteristic.Saturation];
+                characteristics = [Characteristic.Brightness, Characteristic.Hue, ColorTemperature, Characteristic.Saturation];
                 services = [Service.LightSensor];
             }
             else {
-                characteristics = [Characteristic.Brightness, Kelvin];
+                characteristics = [Characteristic.Brightness, ColorTemperature];
                 services = [Service.LightSensor];
             }
 
@@ -623,16 +623,13 @@ function LifxAccessory(log, accessory, bulb, data) {
         service.getCharacteristic(Characteristic.Name).setValue(this.accessory.context.name);
     }
 
-    if (service.testCharacteristic(ColorTemperature) === false) {
-        service.addCharacteristic(ColorTemperature);
-    }
-
     if (service.testCharacteristic(Characteristic.CurrentAmbientLightLevel)) {
         service.removeCharacteristic(service.getCharacteristic(Characteristic.CurrentAmbientLightLevel));
     }
 
     if (service.testCharacteristic(Kelvin)) {
         service.removeCharacteristic(service.getCharacteristic(Kelvin));
+        service.addCharacteristic(ColorTemperature);
     }
 
     this.accessory.on('identify', function(paired, callback) {
@@ -916,6 +913,14 @@ LifxAccessory.prototype.updateInfo = function() {
     var model = this.accessory.getService(Service.AccessoryInformation).getCharacteristic(Characteristic.Model).value;
 
     if (model !== "Unknown" && model !== "Default-Model" && this.accessory.context.features !== undefined) {
+        var service = this.accessory.getService(Service.Lightbulb);
+
+        if (this.accessory.context.features.color === false && service.testCharacteristic(ColorTemperature) === true) {
+            service.getCharacteristic(ColorTemperature).setProps({
+                maxValue: 370,
+                minValue: 154
+            });
+        }
         return;
     }
 
@@ -933,9 +938,9 @@ LifxAccessory.prototype.updateInfo = function() {
             .setCharacteristic(Characteristic.Model, this.accessory.context.model)
             .setCharacteristic(Characteristic.SerialNumber, this.bulb.id);
 
-        if (this.accessory.context.features.color === true) {
-            var service = this.accessory.getService(Service.Lightbulb);
+        var service = this.accessory.getService(Service.Lightbulb);
 
+        if (this.accessory.context.features.color === true) {
             if (service.testCharacteristic(Characteristic.Hue) === false) {
                 service.addCharacteristic(Characteristic.Hue);
                 this.addEventHandler(service, Characteristic.Hue);
@@ -945,6 +950,12 @@ LifxAccessory.prototype.updateInfo = function() {
                 service.addCharacteristic(Characteristic.Saturation);
                 this.addEventHandler(service, Characteristic.Saturation);
             }
+        }
+        else if (service.testCharacteristic(ColorTemperature) === true) {
+            service.getCharacteristic(ColorTemperature).setProps({
+                maxValue: 370,
+                minValue: 154
+            });
         }
     }.bind(this));
 }
