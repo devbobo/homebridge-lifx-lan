@@ -269,16 +269,15 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
             var service = context.accessory.getService(Service.Lightbulb);
             var characteristics, services;
 
-            if (/(650|Original)/.test(context.accessory.context.model)) {
-                characteristics = [Characteristic.Brightness, Characteristic.Hue, ColorTemperature, Characteristic.Saturation];
-            }
-            else if (/LIFX|Color/.test(context.accessory.context.model)) {
-                characteristics = [Characteristic.Brightness, Characteristic.Hue, ColorTemperature, Characteristic.Saturation];
+            if (!/(650|Original)/.test(context.accessory.context.model)) {
                 services = [Service.LightSensor];
+            }
+
+            if (context.accessory.context.features.color === true) {
+                characteristics = [Characteristic.Brightness, ColorTemperature, Characteristic.Hue, Characteristic.Saturation];
             }
             else {
                 characteristics = [Characteristic.Brightness, ColorTemperature];
-                services = [Service.LightSensor];
             }
 
             for (var index in characteristics) {
