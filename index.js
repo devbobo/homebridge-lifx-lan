@@ -29,11 +29,12 @@ var LifxPacket = require('node-lifx').packet;
 var LifxConstants = require('node-lifx').constants;
 
 var Client = new LifxClient();
-var Characteristic, Kelvin, PlatformAccessory, Service, UUIDGen;
+var Characteristic, ColorTemperature, Kelvin, PlatformAccessory, Service, UUIDGen;
 
 var fadeDuration;
 
 const UUID_KELVIN = 'C4E24248-04AC-44AF-ACFF-40164E829DBA';
+const UUID_COLOR_TEMPERATURE = '000000CE-0000-1000-8000-0026BB765291';
 
 module.exports = function(homebridge) {
     PlatformAccessory = homebridge.platformAccessory;
@@ -59,6 +60,23 @@ module.exports = function(homebridge) {
     inherits(Kelvin, Characteristic);
 
     Kelvin.UUID = UUID_KELVIN;
+
+    ColorTemperature = function() {
+        Characteristic.call(this, 'Color Temperature', UUID_COLOR_TEMPERATURE)
+
+        this.setProps({
+            format: Characteristic.Formats.UINT32,
+            maxValue: 400,
+            minValue: 112,
+            minStep: 1,
+            perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+        });
+
+        this.value = this.getDefaultValue();
+    };
+    inherits(ColorTemperature, Characteristic);
+
+    ColorTemperature.UUID = UUID_COLOR_TEMPERATURE;
 
     homebridge.registerPlatform("homebridge-lifx-lan", "LifxLan", LifxLanPlatform, true);
 };
@@ -605,8 +623,16 @@ function LifxAccessory(log, accessory, bulb, data) {
         service.getCharacteristic(Characteristic.Name).setValue(this.accessory.context.name);
     }
 
+    if (service.testCharacteristic(ColorTemperature) === false) {
+        service.addCharacteristic(ColorTemperature);
+    }
+
     if (service.testCharacteristic(Characteristic.CurrentAmbientLightLevel)) {
         service.removeCharacteristic(service.getCharacteristic(Characteristic.CurrentAmbientLightLevel));
+    }
+
+    if (service.testCharacteristic(Kelvin)) {
+        service.removeCharacteristic(service.getCharacteristic(Kelvin));
     }
 
     this.accessory.on('identify', function(paired, callback) {
@@ -646,16 +672,16 @@ LifxAccessory.prototype.addEventHandler = function(service, characteristic) {
                 .setProps({minValue: 1})
                 .on('set', this.setBrightness.bind(this));
             break;
+        case ColorTemperature:
+            service
+                .getCharacteristic(ColorTemperature)
+                .setValue(this.miredConversion(this.color.kelvin))
+                .on('set', this.setKelvin.bind(this));
+            break;
         case Characteristic.CurrentAmbientLightLevel:
             service
                 .getCharacteristic(Characteristic.CurrentAmbientLightLevel)
                 .on('get', this.getAmbientLight.bind(this));
-            break;
-        case Kelvin:
-            service
-                .getCharacteristic(Kelvin)
-                .setValue(this.color.kelvin)
-                .on('set', this.setKelvin.bind(this));
             break;
         case Characteristic.Hue:
             service
@@ -676,7 +702,7 @@ LifxAccessory.prototype.addEventHandlers = function() {
     this.addEventHandler(Service.Lightbulb, Characteristic.On);
     this.addEventHandler(Service.Lightbulb,Characteristic.Brightness);
     this.addEventHandler(Service.LightSensor, Characteristic.CurrentAmbientLightLevel);
-    this.addEventHandler(Service.Lightbulb, Kelvin);
+    this.addEventHandler(Service.Lightbulb, ColorTemperature);
 
     this.addEventHandler(Service.Lightbulb, Characteristic.Hue);
     this.addEventHandler(Service.Lightbulb, Characteristic.Saturation);
@@ -696,10 +722,13 @@ LifxAccessory.prototype.get = function (type) {
     switch(type) {
         case "brightness":
         case "hue":
-        case "kelvin":
         case "saturation":
             this.log("%s - Get %s: %d", this.accessory.context.name, type, this.color[type]);
             state = this.color[type];
+            break;
+        case "kelvin":
+            this.log("%s - Get %s: %d", this.accessory.context.name, type, this.color[type]);
+            state = this.miredConversion(this.color[type]);
             break;
         case "power":
             this.log("%s - Get power: %d", this.accessory.context.name, this.power);
@@ -754,8 +783,8 @@ LifxAccessory.prototype.getState = function(type, callback) {
                 service.getCharacteristic(Characteristic.Brightness).updateValue(this.color.brightness);
             }
 
-            if (service.testCharacteristic(Characteristic.Kelvin)) {
-                service.getCharacteristic(Kelvin).updateValue(this.color.kelvin);
+            if (service.testCharacteristic(ColorTemperature)) {
+                service.getCharacteristic(ColorTemperature).updateValue(this.miredConversion(this.color.kelvin));
             }
 
             if (service.testCharacteristic(Characteristic.Hue)) {
@@ -781,14 +810,26 @@ LifxAccessory.prototype.setBrightness = function(value, callback) {
 }
 
 LifxAccessory.prototype.setColor = function(type, value, callback){
-    var color;
+    var kelvin;
 
-    this.log("%s - Set %s: %d", this.accessory.context.name, type, value);
+    if (type === 'kelvin') {
+        kelvin = this.miredConversion(value);
+        this.log("%s - Set %s: %dK [%d mired]", this.accessory.context.name, type, kelvin, value);
+        value = kelvin;
+    }
+    else {
+        this.log("%s - Set %s: %d", this.accessory.context.name, type, value);
+    }
+
     this.color[type] = value;
 
     this.bulb.color(this.color.hue, this.color.saturation, this.color.brightness, this.color.kelvin, fadeDuration, function (err) {
         callback(null);
     });
+}
+
+LifxAccessory.prototype.miredConversion = function(value) {
+    return parseInt(1000000/value);
 }
 
 LifxAccessory.prototype.setHue = function(value, callback) {
@@ -801,7 +842,7 @@ LifxAccessory.prototype.setHue = function(value, callback) {
 }
 
 LifxAccessory.prototype.setKelvin = function(value, callback) {
-    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(Kelvin).value) {
+    if (value == this.accessory.getService(Service.Lightbulb).getCharacteristic(ColorTemperature).value) {
         callback(null);
         return;
     }
