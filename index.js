@@ -116,15 +116,22 @@ function LifxLanPlatform(log, config, api) {
 
     Client.on('light-online', function(bulb) {
         var uuid = UUIDGen.generate(bulb.id);
-        var object = this.accessories[uuid];
+        var accessory = this.accessories[uuid];
 
-        if (object === undefined) {
+        if (this.ignoredDevices.indexOf(bulb.id) !== -1) {
+            if (accessory !== undefined) {
+                this.removeAccessory(accessory);
+            }
+
+            return;
+        }
+        else if (accessory === undefined) {
             this.addAccessory(bulb);
         }
         else {
-            if (object instanceof LifxAccessory) {
-                this.log("Online: %s [%s]", object.accessory.context.name, bulb.id);
-                object.updateReachability(bulb, true);
+            if (accessory instanceof LifxAccessory) {
+                this.log("Online: %s [%s]", accessory.accessory.context.name, bulb.id);
+                accessory.updateReachability(bulb, true);
             }
         }
     }.bind(this));
@@ -438,7 +445,6 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     context.onScreen = "Remove";
                     break;
                 case 2:
-                    //context.onScreen = "IgnoreList";
                     context.onScreen = "Configuration";
                     break;
             }
@@ -463,16 +469,6 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                     "allowMultipleSelection": false,
                     "items": ["Ignored Devices"]
                 }
-
-                /*
-                respDict = {
-                    "type": "Interface",
-                    "interface": "list",
-                    "title": "Modify Ignore List",
-                    "allowMultipleSelection": false,
-                    "items": this.ignoredDevices.length > 0 ? ["Add Accessory", "Remove Accessory"] : ["Add Accessory"]
-                }
-                */
             }
 
             callback(respDict);
@@ -485,6 +481,8 @@ LifxLanPlatform.prototype.configurationRequestHandler = function(context, reques
                 "allowMultipleSelection": false,
                 "items": this.ignoredDevices.length > 0 ? ["Add Accessory", "Remove Accessory"] : ["Add Accessory"]
             }
+
+            context.onScreen = "IgnoreList";
 
             callback(respDict);
             break;
@@ -633,7 +631,7 @@ function LifxAccessory(log, accessory, bulb, data) {
 
     this.accessory.on('identify', function(paired, callback) {
         this.log("%s - identify", this.accessory.context.name);
-        callback();
+        this.setWaveform(null, callback);
     }.bind(this));
 
     this.addEventHandlers();
@@ -812,6 +810,19 @@ LifxAccessory.prototype.setColor = function(type, value, callback){
         kelvin = this.miredConversion(value);
         this.log("%s - Set %s: %dK [%d mired]", this.accessory.context.name, type, kelvin, value);
         value = kelvin;
+
+        var service = this.accessory.getService(Service.Lightbulb);
+
+        if (service.testCharacteristic(Characteristic.Hue) === true) {
+            service.getCharacteristic(Characteristic.Hue).updateValue(0);
+        }
+
+        if (service.testCharacteristic(Characteristic.Saturation) === true) {
+            service.getCharacteristic(Characteristic.Saturation).updateValue(0);
+        }
+
+        this.color.hue = 0;
+        this.color.saturation = 0;
     }
     else {
         this.log("%s - Set %s: %d", this.accessory.context.name, type, value);
@@ -867,22 +878,43 @@ LifxAccessory.prototype.setPower = function(state, callback) {
     }.bind(this));
 }
 
-LifxAccessory.prototype.setWaveform = function(hue, period, cycles, skewRatio, waveform, callback) {
+LifxAccessory.prototype.setWaveform = function(settings, callback) {
     var light = this.accessory.getService(Service.Lightbulb);
 
-    var packetObj = LifxPacket.create('setWaveform', {
+    var defaults = {
+        color: {hue: 128, saturation: 100, brightness: 100, kelvin: 3500},
+        cycles: 3,
         isTransient: true,
+        period: 1000,
+        skewRatio: 1,
+        waveform: 0
+    };
+
+    settings = settings || {};
+
+    for (var key in defaults) {
+        settings[key] = settings[key] || defaults[key];
+
+        if (typeof(defaults[key]) === 'object') {
+            for (var subkey in defaults[subkey]) {
+                settings[key][subkey] = settings[key][subkey] || defaults[key][subkey];
+            }
+        }
+    }
+
+    var packetObj = LifxPacket.create('setWaveform', {
+        isTransient: settings.isTransient,
         color: {
-            hue: parseInt(hue * 65535 / 360),
-            saturation: 65535,
-            brightness: 65535,
+            hue: Math.round(settings.color.hue / LifxConstants.HSBK_MAXIMUM_HUE * 65535),
+            saturation: Math.round(settings.color.saturation / LifxConstants.HSBK_MAXIMUM_SATURATION * 65535),
+            brightness: Math.round(settings.color.brightness / LifxConstants.HSBK_MAXIMUM_BRIGHTNESS * 65535),
             kelvin: 3500
         },
-        period: period,
-        cycles: cycles,
-        skewRatio: skewRatio,
+        period: settings.period,
+        cycles: settings.cycles,
+        skewRatio: settings.skewRatio,
         // [0] = SAW, [1] = SINE, [2] = HALF_SINE, [3] = TRIANGLE, [4] = PULSE
-        waveform: waveform
+        waveform: LifxConstants.LIGHT_WAVEFORMS[settings.waveform]
     }, Client.source);
 
     packetObj.target = this.bulb.id; // light id
