@@ -8,7 +8,9 @@
 //         "platform": "LifxLan",           // required
 //         "name": "LiFx LAN",              // required
 //         "duration": 1000,                // optional, the time to fade on/off in milliseconds
-
+//         "ignoredDevices": ["abcd1234561", "efabcd6721"]
+//                                          // optional: Array of bulb ids to ignore (from accessory.context.id)
+//                                          // If you have a switch in your HomeWizard you don't want to expose to Siri. Put the ids in here and they will be ignored.
 //         ** optional node-lifx parameters **
 //         "broadcast": '255.255.255.255',   // optional: Broadcast address for bulb discovery
 //         "lightOfflineTolerance": 3,       // optional: A light is offline if not seen for the given amount of discoveries
