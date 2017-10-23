@@ -17,8 +17,8 @@
         "url": "http://github.com/devbobo/homebridge-lifx-lan/issues"
     },
     "engines": {
-        "node": ">=6.0.0",
-        "homebridge": ">=0.4.1"
+        "node": ">=6",
+        "homebridge": ">=0.4.29"
     },
     "keywords": [
         "homebridge-plugin",

@@ -109,7 +109,6 @@ function LifxLanPlatform(log, config, api) {
         if (object !== undefined) {
             if (object instanceof LifxAccessory) {
                 this.log("Offline: %s [%s]", object.accessory.context.name, bulb.id);
-                object.updateReachability(bulb, false);
             }
         }
     }.bind(this));
@@ -131,7 +130,7 @@ function LifxLanPlatform(log, config, api) {
         else {
             if (accessory instanceof LifxAccessory) {
                 this.log("Online: %s [%s]", accessory.accessory.context.name, bulb.id);
-                accessory.updateReachability(bulb, true);
+                accessory.updateReachability(bulb);
             }
         }
     }.bind(this));
@@ -223,7 +222,6 @@ LifxLanPlatform.prototype.addAccessory = function(bulb, data) {
 }
 
 LifxLanPlatform.prototype.configureAccessory = function(accessory) {
-    accessory.updateReachability(false);
     this.accessories[accessory.UUID] = accessory;
 }
 
@@ -635,7 +633,7 @@ function LifxAccessory(log, accessory, bulb, data) {
     }.bind(this));
 
     this.addEventHandlers();
-    this.updateReachability(bulb, true);
+    this.updateReachability(bulb);
 }
 
 LifxAccessory.prototype.addEventHandler = function(service, characteristic) {
@@ -751,11 +749,6 @@ LifxAccessory.prototype.getPower = function(callback) {
 }
 
 LifxAccessory.prototype.getState = function(type, callback) {
-    if (!this.accessory.reachable) {
-        callback('Bulb not reachable');
-        return;
-    }
-
     if (this.lastCalled && (Date.now() - this.lastCalled) < 5000) {
         callback(null, this.get(type));
         return;
@@ -769,7 +762,6 @@ LifxAccessory.prototype.getState = function(type, callback) {
         if (data) {
             this.power = data.power;
             this.color = data.color;
-            this.accessory.updateReachability(true);
 
             var service = this.accessory.getService(Service.Lightbulb);
 
@@ -991,16 +983,7 @@ LifxAccessory.prototype.updateInfo = function() {
     }.bind(this));
 }
 
-LifxAccessory.prototype.updateReachability = function(bulb, reachable) {
-
-    this.accessory.updateReachability(reachable);
+LifxAccessory.prototype.updateReachability = function(bulb) {
     this.bulb = bulb;
-
-    if (!reachable) {
-        this.closeCallbacks('LIFX light went offline.');
-    }
-
-    if (reachable === true) {
-        this.updateInfo();
-    }
+    this.updateInfo();
 }
