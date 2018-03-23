@@ -35,7 +35,8 @@ Configuration sample:
 "platforms": [
     {
         "platform": "LifxLan",
-        "name": "LiFx"
+        "name": "LiFx",
+        "ignoredDevices" : ["abcd1234561", "efabcd6721"]
     }
 ]
 
